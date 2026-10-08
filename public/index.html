@@ -1569,13 +1569,21 @@
             if (!query) return;
             const respBox = document.getElementById('aiTestResponse');
             respBox.textContent = 'Thinking with Knowledge Base...';
-            const res = await fetch('/api/knowledge/test', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query })
-            });
-            const data = await res.json();
-            respBox.textContent = data.reply || 'No response.';
+            try {
+                const res = await fetch('/api/knowledge/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const data = await res.json();
+                let output = data.reply;
+                if (typeof output === 'object' && output !== null) {
+                    output = output.reply || JSON.stringify(output);
+                }
+                respBox.textContent = output || 'No response generated.';
+            } catch (err) {
+                respBox.textContent = 'Error: ' + err.message;
+            }
         }
 
         // MODAL MANAGEMENT
@@ -1741,10 +1749,18 @@
         }
 
         async function restartBotServer() {
-            if (!confirm('Restart bot connection?')) return;
-            const res = await fetch('/api/bot/restart', { method: 'POST' });
-            const data = await res.json();
-            alert(data.message || 'Restart initiated');
+            if (!confirm('Restart bot and reload server? This will reboot the process so all newly updated code files take effect.')) return;
+            try {
+                const res = await fetch('/api/server/reboot', { method: 'POST' });
+                const data = await res.json();
+                alert(data.message || 'Server reboot initiated. The panel will automatically reload.');
+            } catch (e) {
+                // Fallback to bot restart with hard flag
+                try {
+                    await fetch('/api/bot/restart?hard=1', { method: 'POST' });
+                } catch (e2) {}
+                alert('Restart request sent. The server is reloading...');
+            }
         }
 
         // ANALYTICS MANAGER
@@ -2006,17 +2022,34 @@
             const isStandalone = toggle ? toggle.checked : false;
 
             try {
-                const res = await fetch('/api/keywords/config', {
+                let res = await fetch('/api/keywords/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ standalone: isStandalone })
                 });
+
+                // Fallback to /api/keywords if /api/keywords/config isn't loaded yet
+                if (!res.ok) {
+                    res = await fetch('/api/keywords', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'config', standalone: isStandalone })
+                    });
+                }
+
+                if (!res.ok) {
+                    throw new Error(`Server returned HTTP ${res.status}. Please click "Restart" in the header or restart your server on the Pterodactyl console to reload the latest backend code into memory.`);
+                }
+
                 const data = await res.json();
                 if (data.success) {
                     currentKeywordConfig.standalone = isStandalone;
                     loadKeywords();
+                } else {
+                    throw new Error(data.error || 'Failed to update mode');
                 }
             } catch (err) {
+                if (toggle) toggle.checked = !isStandalone;
                 alert('Failed to update standalone mode: ' + err.message);
             }
         }

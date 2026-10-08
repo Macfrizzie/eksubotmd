@@ -143,9 +143,24 @@ app.post('/api/bot/pair', async (req, res) => {
 
 app.post('/api/bot/restart', async (req, res) => {
     try {
+        const hard = req.query.hard === '1' || req.body?.hard === true;
+        if (hard) {
+            res.json({ success: true, message: 'Full server reboot initiated. Process is restarting...' });
+            setTimeout(() => { process.exit(0); }, 800);
+            return;
+        }
         const { getBotController } = require('../core/botController');
         await getBotController().restart();
         res.json({ success: true, message: 'Bot restart initiated' });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/server/reboot', (req, res) => {
+    try {
+        res.json({ success: true, message: 'Full server reboot initiated. Container is reloading node process...' });
+        setTimeout(() => { process.exit(0); }, 800);
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -198,13 +213,21 @@ app.delete('/api/knowledge/entry/:id', (req, res) => {
     res.json({ success: deleted });
 });
 
-// Test query directly from web browser
+// Test query directly from web browser (Fixes [object Object] by properly unwrapping reply string)
 app.post('/api/knowledge/test', async (req, res) => {
     try {
         const { query } = req.body;
         if (!query) return res.status(400).json({ error: 'Query is required' });
-        const reply = await aiEngine.generateReply(query, 'web_test', 'Web User', true);
-        res.json({ reply: reply || 'No response generated.' });
+        const result = await aiEngine.generateReply(query, 'web_test', 'Web User', true);
+
+        let textReply = 'No response generated.';
+        if (typeof result === 'string') {
+            textReply = result;
+        } else if (result && typeof result === 'object') {
+            textReply = result.reply || (result.handoff ? `[Human Handoff Needed: ${result.handoff.reason}]` : 'No response generated.');
+        }
+
+        res.json({ reply: textReply });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -265,6 +288,12 @@ app.post('/api/keywords/config', (req, res) => {
 
 app.post('/api/keywords', (req, res) => {
     try {
+        // Also handle config updates directly via /api/keywords as fallback
+        if (req.body.action === 'config' || (req.body.standalone !== undefined && !req.body.keyword && !req.body.keywords)) {
+            const config = keywordEngine.updateConfig({ enabled: req.body.enabled, standalone: req.body.standalone });
+            return res.json({ success: true, ...config });
+        }
+
         const { keywords, keyword, matchType, responses, response, enabled } = req.body;
         const finalKeywords = (keywords !== undefined && keywords !== null && keywords !== '') ? keywords : keyword;
         const finalResponses = (responses !== undefined && responses !== null && responses !== '') ? responses : response;
