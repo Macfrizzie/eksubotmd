@@ -283,19 +283,52 @@
 
         <!-- TAB: KEYWORD AUTO-REPLY RULES -->
         <section id="tab-keywords" class="tab-content hidden space-y-6">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900 p-5 rounded-xl border border-slate-800">
-                <div>
-                    <h2 class="text-lg font-bold flex items-center gap-2 text-white">
-                        <i data-lucide="tag" class="w-5 h-5 text-emerald-400"></i> Preset Keyword Auto-Reply Rules
-                    </h2>
-                    <p class="text-xs text-slate-400 mt-1">
-                        Respond instantly to specific user messages before Gemini AI is queried. 0 tokens, 0 delay, 100% deterministic.
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-slate-900 p-5 rounded-xl border border-slate-800">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-white">
+                            <i data-lucide="tag" class="w-5 h-5 text-emerald-400"></i> Keyword Auto-Reply Engine
+                        </h2>
+                        <span id="keywordModeBadge" class="text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">Hybrid Mode</span>
+                    </div>
+                    <p class="text-xs text-slate-400">
+                        Match user questions to deterministic multi-bubble replies. 0 API calls, 0 token cost, 100% immune to Gemini rate limits.
                     </p>
                 </div>
-                <div class="flex items-center gap-2.5">
+
+                <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    <!-- Standalone Mode Toggle -->
+                    <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+                        <span class="text-xs text-slate-300 font-medium">Standalone:</span>
+                        <label class="relative inline-flex items-center cursor-pointer" title="Toggle between Standalone (Keywords Only - No AI) and Hybrid (Keywords + AI fallback)">
+                            <input type="checkbox" id="kwStandaloneToggle" class="sr-only peer" onchange="toggleKeywordStandaloneMode()">
+                            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                        <span id="kwStandaloneLabel" class="text-[11px] font-mono text-slate-400">Off (Hybrid)</span>
+                    </div>
+
+                    <!-- 1-Click Firebase Sync Buttons -->
+                    <button onclick="syncKeywordsToFirebase()" id="kwFirebasePushBtn" title="Backup Keyword Rules to Firebase Cloud" class="px-3 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition">
+                        <i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">Push to Cloud</span>
+                    </button>
+                    <button onclick="syncKeywordsFromFirebase()" id="kwFirebasePullBtn" title="Restore Keyword Rules from Firebase Cloud" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition">
+                        <i data-lucide="cloud-download" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">Pull from Cloud</span>
+                    </button>
+
                     <button onclick="openAddKeywordModal()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition shadow shadow-emerald-600/20">
                         <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Keyword Rule
                     </button>
+                </div>
+            </div>
+
+            <!-- Standalone Explainer Banner -->
+            <div id="kwStandaloneNoticeBox" class="hidden bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3.5 flex items-start gap-3 text-xs text-indigo-200">
+                <i data-lucide="shield-check" class="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5"></i>
+                <div class="space-y-0.5">
+                    <p class="font-bold text-indigo-300">Standalone Keyword Mode Active</p>
+                    <p class="text-indigo-200/80">The bot will reply <strong>ONLY</strong> when a keyword rule matches. If no keyword matches, the bot stays silent and will <strong>NOT</strong> call Gemini API. This saves 100% of your AI token quota.</p>
                 </div>
             </div>
 
@@ -304,7 +337,7 @@
                 <div class="flex items-center justify-between">
                     <h3 class="font-semibold text-xs sm:text-sm text-slate-200 flex items-center gap-2">
                         <i data-lucide="flask-conical" class="w-4 h-4 text-purple-400"></i>
-                        Live Keyword Tester (Test Match in Real-Time)
+                        Live Keyword Tester (Test Match & Multi-Bubble Delivery)
                     </h3>
                     <span class="text-[11px] text-slate-500 font-mono">Matches exact, starts/ends with, contains, similar & regex</span>
                 </div>
@@ -321,10 +354,12 @@
             <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow">
                 <div class="p-4 border-b border-slate-800 flex items-center justify-between">
                     <div class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                        <span>Active Keyword Rules</span>
+                        <span>Configured Keyword Rules</span>
                         <span id="keywordCount" class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">0</span>
                     </div>
-                    <div class="text-[11px] text-slate-400">Rules are checked before AI auto-reply</div>
+                    <div class="text-[11px] text-slate-400 flex items-center gap-2">
+                        <span id="kwEngineStatusText">Engine Active</span>
+                    </div>
                 </div>
                 <div id="keywordRulesContainer" class="divide-y divide-slate-800/80">
                     <div class="p-8 text-center text-slate-500">Loading rules...</div>
@@ -904,7 +939,7 @@
 
     <!-- Modal for Adding/Editing Keyword Rule -->
     <div id="keywordModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between">
                 <h3 id="keywordModalTitle" class="text-base font-bold text-white">Add Keyword Auto-Reply Rule</h3>
                 <button onclick="closeKeywordModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
@@ -912,8 +947,12 @@
             <input type="hidden" id="modalKeywordId">
             
             <div>
-                <label class="text-xs text-slate-400">Trigger Keyword / Phrase</label>
-                <input type="text" id="modalKeywordInput" placeholder="e.g. school fees, portal, timetable, hello" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono focus:border-emerald-500">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs text-slate-400">Trigger Keywords / Phrases</label>
+                    <span class="text-[11px] text-slate-500 font-mono">Comma-separated</span>
+                </div>
+                <input type="text" id="modalKeywordInput" placeholder="e.g. school fees, fees, tuition, payment" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono focus:border-emerald-500">
+                <p class="text-[11px] text-slate-500 mt-1">Add multiple trigger words/phrases separated by commas. Any of them will trigger this rule.</p>
             </div>
 
             <div>
@@ -928,12 +967,22 @@
                 </select>
             </div>
 
-            <div>
+            <!-- Multi-Response Chat Bubbles Section -->
+            <div class="space-y-2">
                 <div class="flex items-center justify-between">
-                    <label class="text-xs text-slate-400">Preset Reply Message</label>
-                    <span class="text-[11px] text-slate-500 font-mono">Use @user and @number as placeholders</span>
+                    <label class="text-xs text-slate-400 font-semibold flex items-center gap-1.5">
+                        <i data-lucide="message-square" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        Response Chat Bubbles (WhatsApp Messages)
+                    </label>
+                    <button type="button" onclick="addModalResponseBubble()" class="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1">
+                        <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> + Add Another Chat Bubble
+                    </button>
                 </div>
-                <textarea id="modalKeywordResponse" rows="5" placeholder="Type response... e.g. Hello @user! The student portal URL is https://portal.eksu.edu.ng" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 leading-relaxed focus:border-emerald-500"></textarea>
+                <p class="text-[11px] text-slate-500">Each box below will be sent as a separate chat bubble in WhatsApp! Use <code class="text-emerald-400">@user</code> for user name.</p>
+
+                <div id="modalResponsesContainer" class="space-y-2.5">
+                    <!-- Populated dynamically via JS -->
+                </div>
             </div>
 
             <div class="flex items-center gap-2 pt-1">
@@ -1897,18 +1946,119 @@
 
         // --- KEYWORD RULES MANAGER ---
         let currentKeywords = [];
+        let currentKeywordConfig = { enabled: true, standalone: false };
 
         async function loadKeywords() {
             try {
                 const res = await fetch('/api/keywords');
-                currentKeywords = await res.json();
+                const data = await res.json();
+
+                if (Array.isArray(data)) {
+                    currentKeywords = data;
+                } else if (data && typeof data === 'object') {
+                    currentKeywordConfig = {
+                        enabled: data.enabled !== undefined ? !!data.enabled : true,
+                        standalone: data.standalone !== undefined ? !!data.standalone : false
+                    };
+                    currentKeywords = Array.isArray(data.rules) ? data.rules : [];
+                }
+
+                // Update Standalone Mode UI elements
+                const standaloneToggle = document.getElementById('kwStandaloneToggle');
+                const standaloneLabel = document.getElementById('kwStandaloneLabel');
+                const modeBadge = document.getElementById('keywordModeBadge');
+                const noticeBox = document.getElementById('kwStandaloneNoticeBox');
+
+                if (standaloneToggle) standaloneToggle.checked = currentKeywordConfig.standalone;
+                if (standaloneLabel) standaloneLabel.textContent = currentKeywordConfig.standalone ? 'ON (Standalone)' : 'OFF (Hybrid)';
+
+                if (modeBadge) {
+                    if (currentKeywordConfig.standalone) {
+                        modeBadge.textContent = 'Standalone Mode (0 AI Tokens)';
+                        modeBadge.className = 'text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
+                    } else {
+                        modeBadge.textContent = 'Hybrid Mode (Keywords + AI)';
+                        modeBadge.className = 'text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20';
+                    }
+                }
+
+                if (noticeBox) {
+                    if (currentKeywordConfig.standalone) {
+                        noticeBox.classList.remove('hidden');
+                    } else {
+                        noticeBox.classList.add('hidden');
+                    }
+                }
+
                 renderKeywords(currentKeywords);
+
                 const badge = document.getElementById('keywordBadgeCount');
                 const countEl = document.getElementById('keywordCount');
                 if (badge) badge.textContent = currentKeywords.length;
                 if (countEl) countEl.textContent = currentKeywords.length;
             } catch (err) {
                 console.error('Error loading keywords:', err);
+            }
+        }
+
+        async function toggleKeywordStandaloneMode() {
+            const toggle = document.getElementById('kwStandaloneToggle');
+            const isStandalone = toggle ? toggle.checked : false;
+
+            try {
+                const res = await fetch('/api/keywords/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ standalone: isStandalone })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    currentKeywordConfig.standalone = isStandalone;
+                    loadKeywords();
+                }
+            } catch (err) {
+                alert('Failed to update standalone mode: ' + err.message);
+            }
+        }
+
+        async function syncKeywordsToFirebase() {
+            const btn = document.getElementById('kwFirebasePushBtn');
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Backing up...';
+            try {
+                const res = await fetch('/api/keywords/firebase/push', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`☁️ Success: Backed up ${data.count} keyword rules to Firebase Cloud Firestore!`);
+                } else {
+                    alert('Firebase Backup Error: ' + (data.error || 'Check Firebase credentials in .env or Settings'));
+                }
+            } catch (e) {
+                alert('Firebase Sync Error: ' + e.message);
+            } finally {
+                btn.innerHTML = orig;
+                lucide.createIcons();
+            }
+        }
+
+        async function syncKeywordsFromFirebase() {
+            const btn = document.getElementById('kwFirebasePullBtn');
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Restoring...';
+            try {
+                const res = await fetch('/api/keywords/firebase/pull', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`☁️ Success: Restored ${data.count} keyword rules from Firebase Cloud Firestore!`);
+                    loadKeywords();
+                } else {
+                    alert('Firebase Restore Error: ' + (data.error || 'No keyword rules found in Firestore'));
+                }
+            } catch (e) {
+                alert('Firebase Sync Error: ' + e.message);
+            } finally {
+                btn.innerHTML = orig;
+                lucide.createIcons();
             }
         }
 
@@ -1938,14 +2088,43 @@
             rules.forEach(rule => {
                 const div = document.createElement('div');
                 div.className = 'p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:bg-slate-800/30 transition';
+
+                // Format keywords list
+                const kwList = Array.isArray(rule.keywords) && rule.keywords.length > 0
+                    ? rule.keywords
+                    : (typeof rule.keyword === 'string' ? rule.keyword.split(',').map(s => s.trim()).filter(Boolean) : []);
+
+                const kwBadgesHtml = kwList.map(k => `
+                    <span class="font-mono font-bold text-xs text-white px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
+                        ${escapeHtml(k)}
+                    </span>
+                `).join(' ');
+
+                // Format multi-responses / chat bubbles
+                const responseList = Array.isArray(rule.responses) && rule.responses.length > 0
+                    ? rule.responses
+                    : [rule.response || ''];
+
+                const bubblesHtml = responseList.map((resp, idx) => `
+                    <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800/90 text-xs text-slate-200 flex items-start gap-2">
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase flex-shrink-0 mt-0.5 ${idx === 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'}">
+                            Bubble #${idx + 1}
+                        </span>
+                        <span class="leading-relaxed break-words font-sans flex-1">${escapeHtml(resp)}</span>
+                    </div>
+                `).join('');
+
                 div.innerHTML = `
-                    <div class="space-y-1.5 flex-1 min-w-0">
+                    <div class="space-y-2 flex-1 min-w-0">
                         <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-mono font-bold text-sm text-white px-2 py-0.5 rounded bg-slate-800 border border-slate-700">${escapeHtml(rule.keyword)}</span>
+                            ${kwBadgesHtml}
                             ${getMatchTypeBadge(rule.matchType)}
-                            <span class="text-[11px] ${rule.enabled ? 'text-emerald-400' : 'text-slate-500 font-mono'}">● ${rule.enabled ? 'Active' : 'Disabled'}</span>
+                            <span class="text-[11px] font-mono ${rule.enabled ? 'text-emerald-400' : 'text-slate-500'}">● ${rule.enabled ? 'Active' : 'Disabled'}</span>
+                            <span class="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">${responseList.length} chat bubble${responseList.length > 1 ? 's' : ''}</span>
                         </div>
-                        <p class="text-xs text-slate-300 leading-relaxed break-words bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 font-sans">${escapeHtml(rule.response)}</p>
+                        <div class="space-y-1.5 mt-1">
+                            ${bubblesHtml}
+                        </div>
                     </div>
                     <div class="flex items-center gap-2 flex-shrink-0 w-full md:w-auto justify-end">
                         <button onclick="toggleKeywordRule('${rule.id}', ${!rule.enabled})" title="${rule.enabled ? 'Disable' : 'Enable'} rule" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${rule.enabled ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}">
@@ -1964,13 +2143,69 @@
             lucide.createIcons();
         }
 
+        // DYNAMIC CHAT BUBBLES IN MODAL
+        function renderModalResponseBubbles(responses = ['']) {
+            const container = document.getElementById('modalResponsesContainer');
+            container.innerHTML = '';
+
+            responses.forEach((resp, idx) => {
+                const bubbleCard = document.createElement('div');
+                bubbleCard.className = 'modal-bubble-card bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1.5';
+                bubbleCard.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold font-mono text-emerald-400 flex items-center gap-1.5">
+                            <i data-lucide="message-square" class="w-3 h-3"></i> Chat Bubble #${idx + 1} ${idx === 0 ? '<span class="text-slate-500 font-normal">(Initial response)</span>' : '<span class="text-slate-500 font-normal">(Follow-up bubble)</span>'}
+                        </span>
+                        ${idx > 0 ? `<button type="button" onclick="this.closest('.modal-bubble-card').remove(); reindexModalBubbles();" class="text-rose-400 hover:text-rose-300 text-xs flex items-center gap-1"><i data-lucide="x" class="w-3 h-3"></i> Remove</button>` : ''}
+                    </div>
+                    <textarea rows="3" placeholder="Message content for bubble #${idx + 1}..." class="modal-response-bubble-input w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 font-sans leading-relaxed focus:border-emerald-500">${escapeHtml(resp)}</textarea>
+                `;
+                container.appendChild(bubbleCard);
+            });
+            lucide.createIcons();
+        }
+
+        function addModalResponseBubble(initialText = '') {
+            const container = document.getElementById('modalResponsesContainer');
+            const count = container.querySelectorAll('.modal-bubble-card').length;
+            const bubbleCard = document.createElement('div');
+            bubbleCard.className = 'modal-bubble-card bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1.5';
+            bubbleCard.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold font-mono text-blue-400 flex items-center gap-1.5">
+                        <i data-lucide="message-square" class="w-3 h-3"></i> Chat Bubble #${count + 1} <span class="text-slate-500 font-normal">(Follow-up bubble)</span>
+                    </span>
+                    <button type="button" onclick="this.closest('.modal-bubble-card').remove(); reindexModalBubbles();" class="text-rose-400 hover:text-rose-300 text-xs flex items-center gap-1">
+                        <i data-lucide="x" class="w-3 h-3"></i> Remove
+                    </button>
+                </div>
+                <textarea rows="3" placeholder="Message content for bubble #${count + 1}..." class="modal-response-bubble-input w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 font-sans leading-relaxed focus:border-emerald-500">${escapeHtml(initialText)}</textarea>
+            `;
+            container.appendChild(bubbleCard);
+            lucide.createIcons();
+        }
+
+        function reindexModalBubbles() {
+            const container = document.getElementById('modalResponsesContainer');
+            const cards = container.querySelectorAll('.modal-bubble-card');
+            cards.forEach((card, idx) => {
+                const title = card.querySelector('span');
+                if (title) {
+                    title.innerHTML = `<i data-lucide="message-square" class="w-3 h-3"></i> Chat Bubble #${idx + 1} ${idx === 0 ? '<span class="text-slate-500 font-normal">(Initial response)</span>' : '<span class="text-slate-500 font-normal">(Follow-up bubble)</span>'}`;
+                }
+            });
+            lucide.createIcons();
+        }
+
         function openAddKeywordModal() {
             document.getElementById('modalKeywordId').value = '';
             document.getElementById('modalKeywordInput').value = '';
             document.getElementById('modalMatchTypeSelect').value = 'contains';
-            document.getElementById('modalKeywordResponse').value = '';
             document.getElementById('modalKeywordEnabled').checked = true;
             document.getElementById('keywordModalTitle').textContent = 'Add Keyword Auto-Reply Rule';
+
+            // Pre-fill 2 response bubbles as requested!
+            renderModalResponseBubbles(['', '']);
             document.getElementById('keywordModal').classList.remove('hidden');
         }
 
@@ -1978,9 +2213,19 @@
             const rule = currentKeywords.find(r => r.id === id);
             if (!rule) return;
             document.getElementById('modalKeywordId').value = rule.id;
-            document.getElementById('modalKeywordInput').value = rule.keyword;
+
+            const kwList = Array.isArray(rule.keywords) && rule.keywords.length > 0
+                ? rule.keywords
+                : (typeof rule.keyword === 'string' ? rule.keyword.split(',').map(s => s.trim()).filter(Boolean) : []);
+            document.getElementById('modalKeywordInput').value = kwList.join(', ');
+
             document.getElementById('modalMatchTypeSelect').value = rule.matchType || 'contains';
-            document.getElementById('modalKeywordResponse').value = rule.response;
+
+            const respList = Array.isArray(rule.responses) && rule.responses.length > 0
+                ? rule.responses
+                : [rule.response || ''];
+            renderModalResponseBubbles(respList);
+
             document.getElementById('modalKeywordEnabled').checked = rule.enabled !== false;
             document.getElementById('keywordModalTitle').textContent = 'Edit Keyword Rule';
             document.getElementById('keywordModal').classList.remove('hidden');
@@ -1992,14 +2237,20 @@
 
         async function submitKeywordRule() {
             const id = document.getElementById('modalKeywordId').value;
-            const keyword = document.getElementById('modalKeywordInput').value.trim();
+            const rawKeywords = document.getElementById('modalKeywordInput').value;
             const matchType = document.getElementById('modalMatchTypeSelect').value;
-            const response = document.getElementById('modalKeywordResponse').value.trim();
             const enabled = document.getElementById('modalKeywordEnabled').checked;
 
-            if (!keyword || !response) return alert('Keyword and preset response message are required.');
+            const keywords = rawKeywords.split(',').map(k => k.trim()).filter(Boolean);
+            if (keywords.length === 0) return alert('Please enter at least one trigger keyword.');
 
-            const payload = { keyword, matchType, response, enabled };
+            // Gather all chat bubble responses
+            const bubbleInputs = document.querySelectorAll('.modal-response-bubble-input');
+            const responses = Array.from(bubbleInputs).map(b => b.value.trim()).filter(Boolean);
+
+            if (responses.length === 0) return alert('Please enter at least one response chat bubble message.');
+
+            const payload = { keywords, matchType, responses, enabled };
 
             if (id) {
                 await fetch(`/api/keywords/${id}`, {
@@ -2051,17 +2302,34 @@
                 const data = await res.json();
 
                 if (data.matched && data.match) {
-                    resBox.className = 'p-3 rounded-lg text-xs font-mono bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 space-y-1';
+                    const matchBubbles = Array.isArray(data.match.responses) && data.match.responses.length > 0
+                        ? data.match.responses
+                        : [data.match.response || ''];
+
+                    const bubblesPreview = matchBubbles.map((b, i) => `
+                        <div class="p-2 rounded bg-slate-900 border border-emerald-500/30 text-slate-100 font-sans text-xs flex items-start gap-2">
+                            <span class="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">Bubble #${i + 1}</span>
+                            <span>"${escapeHtml(b)}"</span>
+                        </div>
+                    `).join('');
+
+                    resBox.className = 'p-3 rounded-lg text-xs font-mono bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 space-y-2';
                     resBox.innerHTML = `
-                        <div class="font-bold">🎯 MATCH FOUND! (Rule: "${escapeHtml(data.match.keyword)}" via ${data.match.matchType.toUpperCase()})</div>
-                        <div class="text-slate-200 font-sans mt-1">Preset Reply: "${escapeHtml(data.match.response)}"</div>
-                        <div class="text-[11px] text-emerald-400 mt-1">⚡ Instant response triggered. Gemini AI will NOT be called. (0 tokens used)</div>
+                        <div class="font-bold">🎯 MATCH FOUND! (Triggered by "${escapeHtml(data.match.matchedKeyword)}" via ${data.match.matchType.toUpperCase()})</div>
+                        <div class="space-y-1.5 mt-1">
+                            <div class="text-[11px] text-slate-400 font-semibold">Delivery Preview (${matchBubbles.length} Chat Bubble${matchBubbles.length > 1 ? 's' : ''}):</div>
+                            ${bubblesPreview}
+                        </div>
+                        <div class="text-[11px] text-emerald-400 pt-1">⚡ ${data.config?.standalone ? 'Standalone Mode: Gemini AI bypassed completely.' : 'Hybrid Mode: Instant keyword reply delivered (0 AI tokens used).'}</div>
                     `;
                 } else {
+                    const isStandalone = data.config?.standalone;
                     resBox.className = 'p-3 rounded-lg text-xs font-mono bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-1';
                     resBox.innerHTML = `
                         <div class="font-bold">ℹ️ No keyword rule matched for: "${escapeHtml(query)}"</div>
-                        <div class="text-slate-300 font-sans mt-1">This message falls back to Google Gemini AI auto-reply with Knowledge Base context.</div>
+                        <div class="text-slate-300 font-sans mt-1">
+                            ${isStandalone ? '🛡️ <strong>Standalone Mode Active:</strong> Bot will remain silent and will <strong>NOT</strong> call Gemini API, saving 100% of your quota.' : '⚡ <strong>Hybrid Mode Active:</strong> Message will fall back to Google Gemini AI auto-reply with Knowledge Base context.'}
+                        </div>
                     `;
                 }
             } catch (err) {

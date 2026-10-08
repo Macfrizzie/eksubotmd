@@ -216,6 +216,32 @@ class FirebaseSync {
         return { success: true, timestamp: this.lastSync, files: restored };
     }
 
+    async pushKeywords() {
+        if (!this.isConfigured()) {
+            throw new Error('FIREBASE_PROJECT_ID is not configured in .env or Web Dashboard');
+        }
+        const keywordEngine = require('./keywordEngine');
+        const state = keywordEngine.getState();
+        await this.saveDoc('bot_config', 'keyword_rules', state);
+        console.log('☁️ Firebase Sync: Successfully backed up keyword rules to Cloud Firestore');
+        return { success: true, count: state.rules.length, timestamp: new Date().toISOString() };
+    }
+
+    async pullKeywords() {
+        if (!this.isConfigured()) {
+            throw new Error('FIREBASE_PROJECT_ID is not configured in .env or Web Dashboard');
+        }
+        const rulesData = await this.getDoc('bot_config', 'keyword_rules');
+        if (!rulesData) {
+            throw new Error('No keyword rules found in Firestore');
+        }
+        fs.writeFileSync(RULES_FILE, JSON.stringify(rulesData, null, 2), 'utf8');
+        const keywordEngine = require('./keywordEngine');
+        keywordEngine.loadRules();
+        console.log('☁️ Firebase Sync: Successfully restored keyword rules from Cloud Firestore');
+        return { success: true, count: keywordEngine.getRules().length, timestamp: new Date().toISOString() };
+    }
+
     getStatus() {
         return {
             configured: this.isConfigured(),

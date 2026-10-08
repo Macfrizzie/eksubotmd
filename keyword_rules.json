@@ -1,38 +1,86 @@
-[
-  {
-    "id": "rule_welcome",
-    "keyword": "hello",
-    "matchType": "contains",
-    "response": "Hello @user! 👋 How can I help you today? Ask me any questions or type .menu for commands.",
-    "enabled": false,
-    "createdAt": "2026-10-08T12:00:00.000Z",
-    "updatedAt": "2026-10-08T16:26:50.535Z"
-  },
-  {
-    "id": "rule_fees",
-    "keyword": "school fees",
-    "matchType": "contains",
-    "response": "📌 School fees can be paid via the student portal at portal.eksu.edu.ng. Late payment penalties apply after the deadline.",
-    "enabled": false,
-    "createdAt": "2026-10-08T12:00:00.000Z",
-    "updatedAt": "2026-10-08T16:26:51.555Z"
-  },
-  {
-    "id": "rule_portal",
-    "keyword": "portal",
-    "matchType": "similar",
-    "response": "🔗 Official EKSU Student Portal is located at: https://portal.eksu.edu.ng",
-    "enabled": false,
-    "createdAt": "2026-10-08T12:00:00.000Z",
-    "updatedAt": "2026-10-08T16:26:53.731Z"
-  },
-  {
-    "id": "rule_creator",
-    "keyword": "who created you",
-    "matchType": "exact",
-    "response": "🤖 I am Eksu-MD, an intelligent WhatsApp assistant built to provide instant support and automate group tasks!",
-    "enabled": false,
-    "createdAt": "2026-10-08T12:00:00.000Z",
-    "updatedAt": "2026-10-08T16:26:55.706Z"
-  }
-]
+{
+  "enabled": true,
+  "standalone": false,
+  "rules": [
+    {
+      "id": "rule_welcome",
+      "keywords": [
+        "hello",
+        "hi",
+        "hey",
+        "good morning",
+        "good afternoon",
+        "good evening"
+      ],
+      "keyword": "hello, hi, hey, good morning, good afternoon, good evening",
+      "matchType": "contains",
+      "responses": [
+        "Hello @user! 👋 Welcome to EKSU Assistant.",
+        "How can I help you today? Ask me any questions about admission, fees, or screening, or type *.menu* for commands."
+      ],
+      "response": "Hello @user! 👋 Welcome to EKSU Assistant.",
+      "enabled": true,
+      "createdAt": "2026-10-08T12:00:00.000Z",
+      "updatedAt": "2026-10-08T23:30:00.000Z"
+    },
+    {
+      "id": "rule_fees",
+      "keywords": [
+        "school fees",
+        "tuition",
+        "fees",
+        "acceptance fee",
+        "pay fees"
+      ],
+      "keyword": "school fees, tuition, fees, acceptance fee, pay fees",
+      "matchType": "contains",
+      "responses": [
+        "📌 *EKSU Payment Information:*\nAll acceptance fees and school fees must be paid directly on the official student portal:\n🔗 https://eksuportal.eksu.edu.ng/app_signin.php",
+        "⚠️ *Critical Warning:* Never pay school fees into personal individual accounts or to anyone claiming to be an agent. Always print your official e-receipt immediately after payment."
+      ],
+      "response": "📌 *EKSU Payment Information:*\nAll acceptance fees and school fees must be paid directly on the official student portal:\n🔗 https://eksuportal.eksu.edu.ng/app_signin.php",
+      "enabled": true,
+      "createdAt": "2026-10-08T12:00:00.000Z",
+      "updatedAt": "2026-10-08T23:30:00.000Z"
+    },
+    {
+      "id": "rule_portal",
+      "keywords": [
+        "portal",
+        "student portal",
+        "login link",
+        "eksu website"
+      ],
+      "keyword": "portal, student portal, login link, eksu website",
+      "matchType": "contains",
+      "responses": [
+        "🔗 *Official EKSU Portals:*\n• Student Portal: https://eksuportal.eksu.edu.ng\n• Admission Portal: https://eksuportal.eksu.edu.ng/app_signin.php",
+        "💡 *Tip:* Ensure you use your registered email and password to log in. Desktop site mode is recommended on mobile browsers."
+      ],
+      "response": "🔗 *Official EKSU Portals:*\n• Student Portal: https://eksuportal.eksu.edu.ng\n• Admission Portal: https://eksuportal.eksu.edu.ng/app_signin.php",
+      "enabled": true,
+      "createdAt": "2026-10-08T12:00:00.000Z",
+      "updatedAt": "2026-10-08T23:30:00.000Z"
+    },
+    {
+      "id": "rule_caps",
+      "keywords": [
+        "jamb caps",
+        "caps",
+        "aip",
+        "admission in progress",
+        "accept admission"
+      ],
+      "keyword": "jamb caps, caps, aip, admission in progress, accept admission",
+      "matchType": "contains",
+      "responses": [
+        "🎓 *JAMB CAPS Guide:*\n1. Check your status at: https://efacility.jamb.gov.ng/Login\n2. If status is *Admission in Progress (AIP)* or *Recommended*, it is NOT final yet. Do not pay any fees at this stage.",
+        "📱 To accept via SMS, send:\n*[JAMB_REG_NUMBER] ACCEPT* to *55019* (or 66019) from your linked SIM card."
+      ],
+      "response": "🎓 *JAMB CAPS Guide:*\n1. Check your status at: https://efacility.jamb.gov.ng/Login\n2. If status is *Admission in Progress (AIP)* or *Recommended*, it is NOT final yet. Do not pay any fees at this stage.",
+      "enabled": true,
+      "createdAt": "2026-10-08T12:00:00.000Z",
+      "updatedAt": "2026-10-08T23:30:00.000Z"
+    }
+  ]
+}

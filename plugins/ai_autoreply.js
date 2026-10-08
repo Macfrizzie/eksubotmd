@@ -26,7 +26,10 @@ Module({
         analytics.recordMessage(m.sender, false);
 
         const kb = aiEngine.getKB();
-        if (!kb.enabled) return;
+        const kwConfig = keywordEngine.getConfig();
+
+        // If both Keyword Engine and AI are disabled, do nothing
+        if (!kwConfig.enabled && !kb.enabled) return;
 
         // Skip commands
         const prefix = process.env.PREFIX || '.';
@@ -46,17 +49,52 @@ Module({
         const senderName = (m.pushName && m.pushName !== 'User') ? m.pushName : (m.senderName || 'Friend');
 
         // 1. Preset Keyword Rule Engine (Zero latency, 0 token cost, instant reply)
-        const kwMatch = keywordEngine.findMatch(clean);
-        if (kwMatch) {
-            let replyText = kwMatch.response
-                .replace(/@user/gi, senderName)
-                .replace(/@number/gi, m.sender.split('@')[0]);
+        if (kwConfig.enabled) {
+            const kwMatch = keywordEngine.findMatch(clean);
+            if (kwMatch) {
+                const rawResponses = (Array.isArray(kwMatch.responses) && kwMatch.responses.length > 0)
+                    ? kwMatch.responses
+                    : [kwMatch.response || ''];
 
-            await new Promise(r => setTimeout(r, 400));
-            await m.reply(replyText);
-            analytics.recordMessage(m.sender, true);
-            return;
+                // Send each response as a separate chat bubble in sequence!
+                for (let i = 0; i < rawResponses.length; i++) {
+                    const rawBubble = rawResponses[i];
+                    if (!rawBubble || !rawBubble.trim()) continue;
+
+                    let replyText = rawBubble
+                        .replace(/@user/gi, senderName)
+                        .replace(/@number/gi, m.sender.split('@')[0]);
+
+                    // Simulate typing for each bubble
+                    try {
+                        if (m.client?.sendPresenceUpdate) {
+                            await m.client.sendPresenceUpdate('composing', m.jid);
+                        }
+                    } catch (e) {}
+
+                    // Delay between multiple chat bubbles
+                    await new Promise(r => setTimeout(r, i === 0 ? 400 : 900));
+                    await m.reply(replyText);
+                }
+
+                try {
+                    if (m.client?.sendPresenceUpdate) {
+                        await m.client.sendPresenceUpdate('paused', m.jid);
+                    }
+                } catch (e) {}
+
+                analytics.recordMessage(m.sender, true);
+                return; // Handled by keyword rule! Do NOT invoke Gemini AI.
+            }
         }
+
+        // 2. Standalone Mode: If Keyword Engine is set to standalone, do NOT call AI!
+        if (kwConfig.standalone) {
+            return; // Only keyword rules respond in standalone mode
+        }
+
+        // 3. If AI is disabled in Hybrid mode, do not call AI
+        if (!kb.enabled) return;
 
         // 2. Debounce and Rate-Limiting Protection for AI API (Prevents 429 Quota Spikes)
         const now = Date.now();
@@ -132,7 +170,8 @@ Module({
         analytics.recordMessage(m.sender, false);
 
         const kb = aiEngine.getKB();
-        if (!kb.enabled) return;
+        const kwConfig = keywordEngine.getConfig();
+        if (kwConfig.standalone || !kb.enabled) return;
         if (kb.dmOnly && m.isGroup) return;
 
         if (aiEngine.isUserPaused(m.sender)) return;

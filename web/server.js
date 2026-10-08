@@ -250,16 +250,33 @@ app.post('/api/handoff/resume/:id', (req, res) => {
 
 // --- 8. KEYWORD AUTO-REPLY RULES API ---
 app.get('/api/keywords', (req, res) => {
-    res.json(keywordEngine.getRules());
+    res.json(keywordEngine.getState());
+});
+
+app.post('/api/keywords/config', (req, res) => {
+    try {
+        const { enabled, standalone } = req.body;
+        const config = keywordEngine.updateConfig({ enabled, standalone });
+        res.json({ success: true, ...config });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.post('/api/keywords', (req, res) => {
     try {
-        const { keyword, matchType, response, enabled } = req.body;
-        if (!keyword || !response) {
-            return res.status(400).json({ error: 'Keyword and response are required.' });
+        const { keywords, keyword, matchType, responses, response, enabled } = req.body;
+        const finalKeywords = (keywords !== undefined && keywords !== null && keywords !== '') ? keywords : keyword;
+        const finalResponses = (responses !== undefined && responses !== null && responses !== '') ? responses : response;
+
+        if (!finalKeywords || (Array.isArray(finalKeywords) && finalKeywords.filter(Boolean).length === 0)) {
+            return res.status(400).json({ error: 'At least one keyword is required.' });
         }
-        const rule = keywordEngine.addRule(keyword, matchType, response, enabled);
+        if (!finalResponses || (Array.isArray(finalResponses) && finalResponses.filter(Boolean).length === 0)) {
+            return res.status(400).json({ error: 'At least one preset response message is required.' });
+        }
+
+        const rule = keywordEngine.addRule(finalKeywords, matchType, finalResponses, enabled);
         res.json({ success: true, rule });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -290,7 +307,27 @@ app.post('/api/keywords/test', (req, res) => {
         const { query } = req.body;
         if (!query) return res.status(400).json({ error: 'Query is required.' });
         const match = keywordEngine.findMatch(query);
-        res.json({ matched: !!match, match });
+        const config = keywordEngine.getConfig();
+        res.json({ matched: !!match, match, config });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Dedicated 1-click Firebase sync for keywords
+app.post('/api/keywords/firebase/push', async (req, res) => {
+    try {
+        const result = await firebaseSync.pushKeywords();
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/keywords/firebase/pull', async (req, res) => {
+    try {
+        const result = await firebaseSync.pullKeywords();
+        res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
