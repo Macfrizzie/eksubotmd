@@ -266,6 +266,15 @@ async function startEksuBot() {
 
         sock.ev.on('creds.update', saveCreds);
 
+        // Group participants update (Welcome / Goodbye / Auto-mod)
+        sock.ev.on('group-participants.update', async (update) => {
+            listeners.forEach(async (plugin) => {
+                if (plugin.on === 'group-participants.update') {
+                    try { await plugin.function(sock, update); } catch (e) {}
+                }
+            });
+        });
+
         // Incoming message dispatcher
         sock.ev.on('messages.upsert', async (chatUpdate) => {
             try {

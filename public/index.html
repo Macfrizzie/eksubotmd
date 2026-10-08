@@ -33,70 +33,89 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <!-- Top Navigation Bar -->
-    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                    <i data-lucide="bot" class="w-6 h-6 text-white"></i>
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-0 min-h-16 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
+            <div class="flex items-center space-x-2.5 sm:space-x-3">
+                <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0">
+                    <i data-lucide="bot" class="w-5 h-5 sm:w-6 sm:h-6 text-white"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight flex items-center gap-2">
+                    <h1 class="font-bold text-base sm:text-lg leading-tight flex items-center gap-1.5 sm:gap-2">
                         Eksu-MD
-                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">v7.0</span>
+                        <span class="text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">v7.0</span>
                     </h1>
-                    <p class="text-xs text-slate-400">WhatsApp AI & Management Console</p>
+                    <p class="text-[11px] sm:text-xs text-slate-400">WhatsApp AI & Management</p>
                 </div>
             </div>
 
-            <!-- Status Pill, Pairing Alert, Restart Button -->
-            <div class="flex items-center space-x-3">
-                <div id="pairingAlert" class="hidden items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono animate-pulse">
+            <!-- Header Controls: Master AI Toggle, Status Pill, Pairing Alert, Restart Button -->
+            <div class="flex items-center flex-wrap gap-2 sm:gap-3 ml-auto">
+                <!-- Master AI Toggle Button -->
+                <button onclick="toggleGlobalAI()" id="headerAiToggleBtn" title="Click to Pause or Resume AI Auto-Reply" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition shadow-sm bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 cursor-pointer">
+                    <span id="headerAiToggleDot" class="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400"></span>
+                    <span id="headerAiToggleText">AI Active</span>
+                </button>
+
+                <div id="pairingAlert" class="hidden items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono animate-pulse">
                     <i data-lucide="key" class="w-3.5 h-3.5"></i>
-                    Pairing Code: <span id="pairingCodeDisplay" class="font-bold tracking-wider text-sm text-white"></span>
+                    Pairing: <span id="pairingCodeDisplay" class="font-bold text-white"></span>
                 </div>
 
-                <div id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
+                <div id="statusBadge" class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-slate-500 animate-ping"></span>
                     <span id="statusText">Connecting...</span>
                 </div>
 
-                <button onclick="restartBotServer()" title="Restart Bot Socket" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition">
-                    <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Restart
+                <button onclick="restartBotServer()" title="Restart Bot Socket" class="p-1.5 sm:px-3 sm:py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Restart</span>
                 </button>
             </div>
         </div>
     </header>
 
     <!-- Main Navigation Tabs -->
-    <div class="border-b border-slate-800 bg-slate-900/40">
-        <div class="max-w-7xl mx-auto px-4 flex space-x-1 overflow-x-auto py-2">
-            <button onclick="switchTab('console')" id="tab-btn-console" class="tab-btn active flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition bg-slate-800 text-emerald-400 border border-slate-700">
+    <div class="border-b border-slate-800 bg-slate-900/40 sticky top-16 z-40 backdrop-blur">
+        <div class="max-w-7xl mx-auto px-2 sm:px-4 flex space-x-1 sm:space-x-2 overflow-x-auto py-2 no-scrollbar scroll-smooth">
+            <button onclick="switchTab('console')" id="tab-btn-console" class="tab-btn active flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition bg-slate-800 text-emerald-400 border border-slate-700">
                 <i data-lucide="terminal" class="w-4 h-4"></i> Live Console
             </button>
-            <button onclick="switchTab('ai')" id="tab-btn-ai" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+            <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics
+            </button>
+            <button onclick="switchTab('handoff')" id="tab-btn-handoff" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="user-check" class="w-4 h-4"></i> Human Handoff
+                <span id="handoffBadgeCount" class="hidden px-1.5 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] rounded-full border border-rose-500/30">0</span>
+            </button>
+            <button onclick="switchTab('ai')" id="tab-btn-ai" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="sparkles" class="w-4 h-4"></i> AI Knowledge Base
             </button>
-            <button onclick="switchTab('env')" id="tab-btn-env" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+            <button onclick="switchTab('env')" id="tab-btn-env" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="sliders" class="w-4 h-4"></i> Environment & Config
             </button>
-            <button onclick="switchTab('firebase')" id="tab-btn-firebase" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+            <button onclick="switchTab('backup')" id="tab-btn-backup" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="archive" class="w-4 h-4"></i> Backup & Restore
+            </button>
+            <button onclick="switchTab('firebase')" id="tab-btn-firebase" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="cloud" class="w-4 h-4"></i> Firebase Sync
             </button>
         </div>
     </div>
 
     <!-- Main Content Area -->
-    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+    <main class="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 flex-1 w-full">
 
         <!-- TAB 1: LIVE CONSOLE & METRICS -->
         <section id="tab-console" class="tab-content space-y-6">
             <!-- Metrics Row -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
                     <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg"><i data-lucide="activity" class="w-6 h-6"></i></div>
                     <div>
@@ -128,7 +147,7 @@
             </div>
 
             <!-- Terminal Box -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col h-[520px]">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col h-[400px] sm:h-[520px]">
                 <div class="bg-slate-800/60 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
                     <div class="flex items-center gap-2 text-xs text-slate-300 font-mono">
                         <span class="w-3 h-3 rounded-full bg-rose-500/80 inline-block"></span>
@@ -372,6 +391,258 @@
                 <div id="firebaseStatusNotice" class="text-xs font-mono text-slate-400">
                     Status: Checking...
                 </div>
+
+                <!-- Step-by-Step Firestore Setup Guide -->
+                <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-4">
+                    <h3 class="text-sm font-semibold text-amber-400 flex items-center gap-2">
+                        <i data-lucide="help-circle" class="w-4 h-4"></i> How to create and set up Google Firebase Firestore
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs text-slate-300">
+                        <div class="bg-slate-900 p-3.5 rounded-lg border border-slate-800 space-y-1.5">
+                            <span class="font-bold text-emerald-400 block">1. Create Project</span>
+                            <p class="text-slate-400 leading-relaxed">Visit <a href="https://console.firebase.google.com/" target="_blank" class="text-blue-400 underline">console.firebase.google.com</a>, log in with Google, and click <strong>"Add project"</strong>.</p>
+                        </div>
+                        <div class="bg-slate-900 p-3.5 rounded-lg border border-slate-800 space-y-1.5">
+                            <span class="font-bold text-emerald-400 block">2. Create Firestore</span>
+                            <p class="text-slate-400 leading-relaxed">In sidebar go to <strong>Build &gt; Firestore Database &gt; Create Database</strong>. Choose your location and choose <strong>"Start in Test mode"</strong>.</p>
+                        </div>
+                        <div class="bg-slate-900 p-3.5 rounded-lg border border-slate-800 space-y-1.5">
+                            <span class="font-bold text-emerald-400 block">3. Copy Project ID</span>
+                            <p class="text-slate-400 leading-relaxed">Click ⚙️ <strong>Project settings &gt; General</strong>. Copy the <strong>Project ID</strong> (e.g., <code>eksubot-ai-12345</code>).</p>
+                        </div>
+                        <div class="bg-slate-900 p-3.5 rounded-lg border border-slate-800 space-y-1.5">
+                            <span class="font-bold text-emerald-400 block">4. Connect &amp; Backup</span>
+                            <p class="text-slate-400 leading-relaxed">Paste your <strong>Project ID</strong> above, click <strong>Save</strong>, then click <strong>Push to Cloud</strong> to sync all bot data!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 5: ANALYTICS & INSIGHTS -->
+        <section id="tab-analytics" class="tab-content hidden space-y-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-emerald-400"></i>
+                        Analytics & Performance Metrics
+                    </h2>
+                    <p class="text-xs text-slate-400">Real-time tracking of conversations, voice note transcripts, AI handoffs, and token consumption.</p>
+                </div>
+                <button onclick="loadAnalytics()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Stats
+                </button>
+            </div>
+
+            <!-- 4 Metric Cards -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-slate-400 font-medium">Messages Flow</span>
+                        <div class="p-2 bg-blue-500/10 text-blue-400 rounded-lg"><i data-lucide="message-square" class="w-4 h-4"></i></div>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="statAnalyticsReceived" class="text-2xl font-bold text-white">0</span>
+                        <span class="text-xs text-slate-400">received</span>
+                    </div>
+                    <div class="mt-1 flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
+                        <i data-lucide="corner-down-right" class="w-3 h-3"></i>
+                        <span id="statAnalyticsReplied">0</span> replies (<span id="statAnalyticsReplyRate">0%</span>)
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-slate-400 font-medium">Voice Notes Transcribed</span>
+                        <div class="p-2 bg-purple-500/10 text-purple-400 rounded-lg"><i data-lucide="mic" class="w-4 h-4"></i></div>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="statAnalyticsAudio" class="text-2xl font-bold text-purple-400">0</span>
+                        <span class="text-xs text-slate-400">audio notes</span>
+                    </div>
+                    <div class="mt-1 text-xs text-slate-400">
+                        Processed via Gemini 3.8 Flash
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-slate-400 font-medium">Human Handoffs</span>
+                        <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg"><i data-lucide="user-check" class="w-4 h-4"></i></div>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="statAnalyticsHandoffs" class="text-2xl font-bold text-amber-400">0</span>
+                        <span class="text-xs text-slate-400">delegated</span>
+                    </div>
+                    <div class="mt-1 text-xs text-slate-400">
+                        Owner alerted for human attention
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-slate-400 font-medium">Tokens & Latency</span>
+                        <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg"><i data-lucide="zap" class="w-4 h-4"></i></div>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="statAnalyticsTokens" class="text-2xl font-bold text-emerald-400">0</span>
+                        <span class="text-xs text-slate-400">est. tokens</span>
+                    </div>
+                    <div class="mt-1 text-xs text-slate-400 font-mono">
+                        Avg Latency: <span id="statAnalyticsLatency" class="text-slate-200">0</span>ms
+                    </div>
+                </div>
+            </div>
+
+            <!-- Two Column Detail Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Top Inquiries & Topics -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                            <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+                            Top Inquiries & Keywords
+                        </h3>
+                        <span class="text-xs text-slate-500">Frequency</span>
+                    </div>
+                    <div id="analyticsTopicsContainer" class="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                        <div class="text-xs text-slate-500 italic p-3 text-center">No inquiry history recorded yet.</div>
+                    </div>
+                </div>
+
+                <!-- Most Active Users -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                            <i data-lucide="users" class="w-4 h-4 text-blue-400"></i>
+                            Most Active Users
+                        </h3>
+                        <span class="text-xs text-slate-500">Interactions</span>
+                    </div>
+                    <div id="analyticsUsersContainer" class="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                        <div class="text-xs text-slate-500 italic p-3 text-center">No user activity recorded yet.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 6: SMART HUMAN HANDOFF QUEUE -->
+        <section id="tab-handoff" class="tab-content hidden space-y-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                        <i data-lucide="user-check" class="w-5 h-5 text-amber-400"></i>
+                        Smart Human Handoff Queue
+                    </h2>
+                    <p class="text-xs text-slate-400">Users who asked questions outside the Knowledge Base or requested human attention. AI is paused for them.</p>
+                </div>
+                <button onclick="loadHandoffQueue()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Queue
+                </button>
+            </div>
+
+            <!-- Info banner -->
+            <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3 text-xs text-amber-200">
+                <i data-lucide="info" class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5"></i>
+                <div class="space-y-1">
+                    <p class="font-semibold text-amber-300">How Agent Mode Works:</p>
+                    <p>When an inquiry cannot be answered by the Knowledge Base, the bot pauses auto-replying to that user and sends a WhatsApp alert to the bot owner. You can chat with them directly, and when you are done, click <strong>Resume AI</strong> below (or send <code>.airesume &lt;number&gt;</code> in WhatsApp) to hand the chat back to the AI assistant.</p>
+                </div>
+            </div>
+
+            <!-- Handoff List -->
+            <div id="handoffListContainer" class="space-y-3">
+                <div class="p-8 text-center text-slate-500 border border-slate-800 rounded-xl bg-slate-900/50">
+                    Loading handoff queue...
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 7: ONE-CLICK BACKUP & RESTORE -->
+        <section id="tab-backup" class="tab-content hidden space-y-6">
+            <div>
+                <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                    <i data-lucide="archive" class="w-5 h-5 text-blue-400"></i>
+                    One-Click Backup & Restore
+                </h2>
+                <p class="text-xs text-slate-400">Export or restore your entire bot state, knowledge base, conversations, environment configuration, and analytics.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Backup Download Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                        <i data-lucide="download-cloud" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base text-slate-100">Export Full Bot Archive</h3>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Packages <code class="text-slate-300">knowledge_base.json</code>, <code class="text-slate-300">conversations.json</code>, <code class="text-slate-300">analytics.json</code>, <code class="text-slate-300">handoffs.json</code>, and <code class="text-slate-300">.env</code> into a timestamped portable <code class="text-emerald-400">.zip</code> file.
+                        </p>
+                    </div>
+
+                    <div class="pt-2">
+                        <a href="/api/backup/download" download class="inline-flex items-center justify-center gap-2 w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-emerald-600/20">
+                            <i data-lucide="download" class="w-4 h-4"></i> Download Full Backup (.zip)
+                        </a>
+                    </div>
+                    <div class="text-[11px] text-slate-500">
+                        * Safe to download anytime. Does not interrupt running WhatsApp connections.
+                    </div>
+                </div>
+
+                <!-- Restore Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+                    <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                        <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base text-slate-100">Restore from Backup Archive</h3>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Upload a previously exported <code class="text-blue-400">.zip</code> archive. All knowledge base items, conversations, and settings will be restored instantly in memory.
+                        </p>
+                    </div>
+
+                    <div class="space-y-3 pt-2">
+                        <input type="file" id="backupFileInput" accept=".zip" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer">
+                        <button onclick="restoreBackupArchive()" id="restoreBtn" class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Restore Bot From .zip
+                        </button>
+                    </div>
+
+                    <div id="restoreStatusMsg" class="hidden text-xs p-3 rounded-lg font-mono"></div>
+                </div>
+            </div>
+
+            <!-- Firebase Cloud Backup Section -->
+            <div class="bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/30 rounded-xl p-6 space-y-4">
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="cloud" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="font-bold text-base text-slate-100">Firebase Cloud Auto-Backup & Restore</h3>
+                                <span id="backupFirebaseBadge" class="px-2 py-0.5 rounded-full text-[11px] font-mono bg-slate-800 text-slate-400 border border-slate-700">Checking...</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Back up your full bot state (Knowledge Base, active conversations, analytics, handoffs, and variables) directly to Google Cloud Firestore with 1 click.
+                            </p>
+                            <div id="backupFirebaseLastSync" class="text-[11px] font-mono text-slate-500 mt-1">
+                                Last Cloud Sync: Checking...
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                        <button onclick="pushToFirebase()" class="flex-1 md:flex-none px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition shadow shadow-amber-600/30">
+                            <i data-lucide="cloud-upload" class="w-4 h-4"></i> Backup to Firebase Cloud
+                        </button>
+                        <button onclick="pullFromFirebase()" class="flex-1 md:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 transition">
+                            <i data-lucide="cloud-download" class="w-4 h-4"></i> Restore from Firebase
+                        </button>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -419,6 +690,9 @@
             activeBtn.classList.remove('text-slate-400');
             activeBtn.classList.add('bg-slate-800', 'text-emerald-400', 'border', 'border-slate-700');
             lucide.createIcons();
+
+            if (tabId === 'analytics') loadAnalytics();
+            if (tabId === 'handoff') loadHandoffQueue();
         }
 
         // WEBSOCKET LOGGING & STATUS
@@ -486,6 +760,11 @@
             if (status.user?.name || status.user?.id) {
                 document.getElementById('statUser').textContent = status.user.name || status.user.id.split('@')[0];
             }
+
+            if (status.aiEnabled !== undefined) {
+                updateAiToggleUI(status.aiEnabled);
+                if (currentKB) currentKB.enabled = status.aiEnabled;
+            }
         }
 
         function appendLog(entry) {
@@ -524,6 +803,8 @@
             loadEnv();
             loadKnowledgeBase();
             loadFirebaseStatus();
+            loadAnalytics();
+            loadHandoffQueue();
         });
 
         // ENV MANAGER
@@ -555,14 +836,63 @@
         // KNOWLEDGE BASE MANAGER
         let currentKB = null;
 
+        function updateAiToggleUI(enabled) {
+            const headerBtn = document.getElementById('headerAiToggleBtn');
+            const headerDot = document.getElementById('headerAiToggleDot');
+            const headerText = document.getElementById('headerAiToggleText');
+            const kbToggle = document.getElementById('kbEnabledToggle');
+            const kbLabel = document.getElementById('kbStateLabel');
+
+            if (kbToggle) kbToggle.checked = !!enabled;
+            if (kbLabel) kbLabel.textContent = enabled ? 'AI Active' : 'AI Paused';
+
+            if (headerBtn && headerDot && headerText) {
+                if (enabled) {
+                    headerBtn.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition shadow-sm bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 cursor-pointer';
+                    headerDot.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400';
+                    headerText.textContent = 'AI Active';
+                } else {
+                    headerBtn.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition shadow-sm bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20 cursor-pointer';
+                    headerDot.className = 'w-2 h-2 rounded-full bg-rose-500 shadow-sm shadow-rose-500';
+                    headerText.textContent = 'AI Paused';
+                }
+            }
+        }
+
+        async function toggleGlobalAI() {
+            const isCurrentlyActive = (currentKB && currentKB.enabled !== undefined) ? currentKB.enabled : true;
+            const newState = !isCurrentlyActive;
+
+            // Immediate optimistic UI update
+            updateAiToggleUI(newState);
+            if (currentKB) currentKB.enabled = newState;
+
+            try {
+                const res = await fetch('/api/ai/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: newState })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    updateAiToggleUI(data.enabled);
+                    if (currentKB) currentKB.enabled = data.enabled;
+                }
+            } catch (err) {
+                console.error('Error toggling AI:', err);
+                updateAiToggleUI(isCurrentlyActive);
+                if (currentKB) currentKB.enabled = isCurrentlyActive;
+                alert('Failed to toggle AI state. Please check connection.');
+            }
+        }
+
         async function loadKnowledgeBase() {
             const res = await fetch('/api/knowledge');
             currentKB = await res.json();
 
-            document.getElementById('kbEnabledToggle').checked = !!currentKB.enabled;
-            document.getElementById('kbStateLabel').textContent = currentKB.enabled ? 'AI Active' : 'AI Paused';
+            updateAiToggleUI(currentKB.enabled);
             document.getElementById('aiProviderSelect').value = currentKB.provider || 'gemini';
-            document.getElementById('aiModelInput').value = currentKB.model || 'gemini-1.5-flash';
+            document.getElementById('aiModelInput').value = currentKB.model || 'gemini-3.8-flash';
             document.getElementById('aiTempInput').value = currentKB.temperature ?? 0.7;
             document.getElementById('aiCooldownInput').value = currentKB.cooldownMinutes ?? 1;
             document.getElementById('aiDmOnlyCheck').checked = currentKB.dmOnly !== false;
@@ -601,13 +931,7 @@
         }
 
         async function toggleAIState() {
-            const enabled = document.getElementById('kbEnabledToggle').checked;
-            document.getElementById('kbStateLabel').textContent = enabled ? 'AI Active' : 'AI Paused';
-            await fetch('/api/knowledge', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled })
-            });
+            await toggleGlobalAI();
         }
 
         async function saveAISettings() {
@@ -697,13 +1021,34 @@
 
         // FIREBASE ACTIONS
         async function loadFirebaseStatus() {
-            const res = await fetch('/api/firebase/status');
-            const data = await res.json();
-            const el = document.getElementById('firebaseStatusNotice');
-            if (data.configured) {
-                el.innerHTML = `🟢 <strong>Configured</strong> | Project: <code>${data.projectId}</code> | Last Sync: ${data.lastSync || 'Never'}`;
-            } else {
-                el.innerHTML = `⚠️ <strong>Not Configured:</strong> Set your Firebase Project ID above to enable Cloud Firestore sync.`;
+            try {
+                const res = await fetch('/api/firebase/status');
+                const data = await res.json();
+                const el = document.getElementById('firebaseStatusNotice');
+                const badge = document.getElementById('backupFirebaseBadge');
+                const lastSyncEl = document.getElementById('backupFirebaseLastSync');
+
+                const timeStr = data.lastSync ? new Date(data.lastSync).toLocaleString() : 'Never';
+
+                if (data.configured) {
+                    if (el) el.innerHTML = `🟢 <strong>Configured</strong> | Project: <code>${data.projectId}</code> | Last Cloud Backup: ${timeStr}`;
+                    if (badge) {
+                        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                        badge.textContent = `Connected: ${data.projectId}`;
+                    }
+                } else {
+                    if (el) el.innerHTML = `⚠️ <strong>Not Configured:</strong> Set your Firebase Project ID above to enable Cloud Firestore backup & restore.`;
+                    if (badge) {
+                        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/30';
+                        badge.textContent = 'Not Configured';
+                    }
+                }
+
+                if (lastSyncEl) {
+                    lastSyncEl.textContent = `Last Cloud Sync: ${timeStr}`;
+                }
+            } catch (err) {
+                console.error('Failed to load Firebase status:', err);
             }
         }
 
@@ -720,13 +1065,39 @@
         }
 
         async function pushToFirebase() {
-            const res = await fetch('/api/firebase/push', { method: 'POST' });
-            const data = await res.json();
-            if (data.success) {
-                alert('Successfully pushed knowledge base & settings to Cloud Firestore!');
-                loadFirebaseStatus();
-            } else {
-                alert(`Error: ${data.error}`);
+            try {
+                const res = await fetch('/api/firebase/push', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`☁️ Cloud Backup Successful!\n\nBacked up: ${data.files ? data.files.join(', ') : 'all bot data'}\nTimestamp: ${new Date(data.timestamp).toLocaleString()}`);
+                    loadFirebaseStatus();
+                } else {
+                    alert(`Error backing up to Firebase: ${data.error || 'Check credentials'}`);
+                }
+            } catch (err) {
+                alert(`Network error pushing to Firebase: ${err.message}`);
+            }
+        }
+
+        async function pullFromFirebase() {
+            if (!confirm('Are you sure you want to restore from Firebase Cloud Firestore? This will overwrite local bot files and refresh active memory.')) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/firebase/pull', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`✅ Restored from Firebase Cloud successfully!\n\nRestored: ${data.files ? data.files.join(', ') : 'all bot data'}\nTimestamp: ${new Date(data.timestamp).toLocaleString()}`);
+                    loadEnv();
+                    loadKnowledgeBase();
+                    loadAnalytics();
+                    loadHandoffQueue();
+                    loadFirebaseStatus();
+                } else {
+                    alert(`Error restoring from Firebase: ${data.error || 'Check credentials or cloud documents'}`);
+                }
+            } catch (err) {
+                alert(`Network error pulling from Firebase: ${err.message}`);
             }
         }
 
@@ -761,6 +1132,202 @@
             const res = await fetch('/api/bot/restart', { method: 'POST' });
             const data = await res.json();
             alert(data.message || 'Restart initiated');
+        }
+
+        // ANALYTICS MANAGER
+        async function loadAnalytics() {
+            try {
+                const res = await fetch('/api/analytics');
+                const data = await res.json();
+
+                document.getElementById('statAnalyticsReceived').textContent = data.totalReceived || 0;
+                document.getElementById('statAnalyticsReplied').textContent = data.totalReplied || 0;
+                const rate = data.totalReceived > 0 ? Math.round((data.totalReplied / data.totalReceived) * 100) : 0;
+                document.getElementById('statAnalyticsReplyRate').textContent = `${rate}%`;
+
+                document.getElementById('statAnalyticsAudio').textContent = data.voiceNotesProcessed || 0;
+                document.getElementById('statAnalyticsHandoffs').textContent = data.handoffsTriggered || 0;
+                document.getElementById('statAnalyticsTokens').textContent = (data.estimatedTokensUsed || 0).toLocaleString();
+                document.getElementById('statAnalyticsLatency').textContent = data.avgResponseLatencyMs || 0;
+
+                // Render Top Topics
+                const topicsContainer = document.getElementById('analyticsTopicsContainer');
+                if (data.topTopics && data.topTopics.length > 0) {
+                    topicsContainer.innerHTML = '';
+                    data.topTopics.forEach((item, idx) => {
+                        const div = document.createElement('div');
+                        div.className = 'flex items-center justify-between p-2 rounded-lg bg-slate-800/60 border border-slate-800 text-xs';
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2 truncate">
+                                <span class="font-mono text-slate-500 w-5">#${idx + 1}</span>
+                                <span class="text-slate-200 truncate font-medium">${escapeHtml(item.topic)}</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono text-[11px] font-bold">
+                                ${item.count} asks
+                            </span>
+                        `;
+                        topicsContainer.appendChild(div);
+                    });
+                } else {
+                    topicsContainer.innerHTML = '<div class="text-xs text-slate-500 italic p-3 text-center">No inquiry history recorded yet.</div>';
+                }
+
+                // Render Active Users
+                const usersContainer = document.getElementById('analyticsUsersContainer');
+                if (data.activeUsers && data.activeUsers.length > 0) {
+                    usersContainer.innerHTML = '';
+                    data.activeUsers.forEach((user, idx) => {
+                        const phone = user.user.split('@')[0];
+                        const div = document.createElement('div');
+                        div.className = 'flex items-center justify-between p-2 rounded-lg bg-slate-800/60 border border-slate-800 text-xs';
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2 truncate">
+                                <span class="font-mono text-slate-500 w-5">#${idx + 1}</span>
+                                <span class="font-mono text-slate-200 truncate">+${escapeHtml(phone)}</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono text-[11px] font-bold">
+                                ${user.count} msgs
+                            </span>
+                        `;
+                        usersContainer.appendChild(div);
+                    });
+                } else {
+                    usersContainer.innerHTML = '<div class="text-xs text-slate-500 italic p-3 text-center">No user activity recorded yet.</div>';
+                }
+            } catch (err) {
+                console.error('Failed to load analytics:', err);
+            }
+        }
+
+        // SMART HUMAN HANDOFF MANAGER
+        async function loadHandoffQueue() {
+            try {
+                const res = await fetch('/api/handoff');
+                const list = await res.json();
+
+                const badge = document.getElementById('handoffBadgeCount');
+                if (list.length > 0) {
+                    badge.textContent = list.length;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+
+                const container = document.getElementById('handoffListContainer');
+                container.innerHTML = '';
+
+                if (list.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-8 text-center border border-slate-800 rounded-xl bg-slate-900/40 text-slate-400 space-y-2">
+                            <i data-lucide="check-circle" class="w-8 h-8 text-emerald-400 mx-auto"></i>
+                            <div class="text-sm font-semibold text-slate-300">All clear! No paused chats.</div>
+                            <div class="text-xs text-slate-500">The AI assistant is actively handling all incoming WhatsApp chats.</div>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                list.forEach(item => {
+                    const phone = item.id.split('@')[0];
+                    const dateStr = item.pausedAt ? new Date(item.pausedAt).toLocaleString() : 'Just now';
+                    const card = document.createElement('div');
+                    card.className = 'bg-slate-900 border border-amber-500/30 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4';
+                    card.innerHTML = `
+                        <div class="space-y-1.5 flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-sm text-white">${escapeHtml(item.name || '+' + phone)}</span>
+                                <span class="font-mono text-xs text-slate-400">(+${phone})</span>
+                                <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold uppercase">Human Attention Needed</span>
+                            </div>
+                            <div class="text-xs text-slate-300">
+                                <span class="text-slate-500 font-mono">Last Inquiry:</span> "${escapeHtml(item.lastQuery || 'Requested human support')}"
+                            </div>
+                            <div class="text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                                <span>Paused: ${dateStr}</span>
+                                <span>•</span>
+                                <span>Reason: ${escapeHtml(item.reason || 'KB Miss')}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
+                            <a href="https://wa.me/${phone}" target="_blank" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition">
+                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Open WhatsApp
+                            </a>
+                            <button onclick="resumeUserAI('${escapeHtml(item.id)}')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow shadow-emerald-600/30">
+                                <i data-lucide="play" class="w-3.5 h-3.5"></i> Resume AI
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+                lucide.createIcons();
+            } catch (err) {
+                console.error('Failed to load handoff queue:', err);
+            }
+        }
+
+        async function resumeUserAI(userId) {
+            try {
+                const res = await fetch(`/api/handoff/resume/${encodeURIComponent(userId)}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    loadHandoffQueue();
+                } else {
+                    alert('Could not resume AI for user');
+                }
+            } catch (err) {
+                alert('Error resuming AI: ' + err.message);
+            }
+        }
+
+        // BACKUP & RESTORE MANAGER
+        async function restoreBackupArchive() {
+            const input = document.getElementById('backupFileInput');
+            const statusMsg = document.getElementById('restoreStatusMsg');
+            const file = input.files[0];
+
+            if (!file) {
+                alert('Please select a .zip backup file first.');
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to restore "${file.name}"? This will overwrite the current bot configuration, knowledge base, and conversations.`)) {
+                return;
+            }
+
+            statusMsg.classList.remove('hidden', 'bg-rose-500/10', 'text-rose-400', 'bg-emerald-500/10', 'text-emerald-400');
+            statusMsg.classList.add('bg-blue-500/10', 'text-blue-400');
+            statusMsg.textContent = 'Uploading and extracting backup archive...';
+
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    const base64Data = reader.result.split(',')[1];
+                    const res = await fetch('/api/backup/restore', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ base64Zip: base64Data })
+                    });
+                    const result = await res.json();
+
+                    if (result.success) {
+                        statusMsg.className = 'text-xs p-3 rounded-lg font-mono bg-emerald-500/10 border border-emerald-500/20 text-emerald-400';
+                        statusMsg.textContent = '✅ Backup successfully restored! Knowledge base and settings refreshed.';
+                        input.value = '';
+                        loadEnv();
+                        loadKnowledgeBase();
+                        loadAnalytics();
+                        loadHandoffQueue();
+                    } else {
+                        statusMsg.className = 'text-xs p-3 rounded-lg font-mono bg-rose-500/10 border border-rose-500/20 text-rose-400';
+                        statusMsg.textContent = `❌ Restore failed: ${result.error || 'Unknown error'}`;
+                    }
+                } catch (err) {
+                    statusMsg.className = 'text-xs p-3 rounded-lg font-mono bg-rose-500/10 border border-rose-500/20 text-rose-400';
+                    statusMsg.textContent = `❌ Upload error: ${err.message}`;
+                }
+            };
+            reader.readAsDataURL(file);
         }
     </script>
 </body>

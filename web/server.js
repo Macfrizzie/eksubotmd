@@ -6,12 +6,14 @@ const fs = require('fs');
 const logger = require('../core/logger');
 const aiEngine = require('../core/aiEngine');
 const firebaseSync = require('../core/firebase');
+const analytics = require('../core/analytics');
+const AdmZip = require('adm-zip');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 // --- WEBSOCKET REAL-TIME BROADCASTS ---
@@ -162,7 +164,21 @@ app.get('/api/knowledge', (req, res) => {
 app.post('/api/knowledge', (req, res) => {
     try {
         const success = aiEngine.saveKB(req.body);
-        res.json({ success });
+        const enabled = aiEngine.getKB().enabled;
+        logger.setStatus({ aiEnabled: enabled });
+        res.json({ success, enabled });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/ai/toggle', (req, res) => {
+    try {
+        const kb = aiEngine.getKB();
+        const newState = req.body && req.body.enabled !== undefined ? !!req.body.enabled : !kb.enabled;
+        aiEngine.saveKB({ enabled: newState });
+        logger.setStatus({ aiEnabled: newState });
+        res.json({ success: true, enabled: newState });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -217,6 +233,81 @@ app.post('/api/firebase/pull', async (req, res) => {
     try {
         const result = await firebaseSync.pullFromCloud();
         res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 6. Analytics API
+app.get('/api/analytics', (req, res) => {
+    res.json(analytics.getStats());
+});
+
+// 7. Human Handoff Queue API
+app.get('/api/handoff', (req, res) => {
+    res.json(aiEngine.getHandoffList());
+});
+
+app.post('/api/handoff/resume/:id', (req, res) => {
+    const success = aiEngine.resumeAIForUser(req.params.id);
+    res.json({ success });
+});
+
+// 8. One-Click Cloud Backup & Restore (.zip)
+app.get('/api/backup/download', (req, res) => {
+    try {
+        const zip = new AdmZip();
+        const rootDir = path.join(__dirname, '..');
+
+        const filesToBackup = [
+            'knowledge_base.json',
+            'conversations.json',
+            'analytics.json',
+            'database.json',
+            'handoffs.json',
+            '.env'
+        ];
+
+        filesToBackup.forEach(file => {
+            const fullPath = path.join(rootDir, file);
+            if (fs.existsSync(fullPath)) {
+                zip.addLocalFile(fullPath);
+            }
+        });
+
+        const zipBuffer = zip.toBuffer();
+        const filename = `eksubot-backup-${new Date().toISOString().substring(0, 10)}.zip`;
+
+        res.set({
+            'Content-Type': 'application/zip',
+            'Content-Disposition': `attachment; filename="${filename}"`,
+            'Content-Length': zipBuffer.length
+        });
+        res.send(zipBuffer);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/backup/restore', (req, res) => {
+    try {
+        const { base64Zip } = req.body;
+        if (!base64Zip) return res.status(400).json({ error: 'Missing backup data' });
+
+        const buffer = Buffer.from(base64Zip, 'base64');
+        const zip = new AdmZip(buffer);
+        const rootDir = path.join(__dirname, '..');
+
+        zip.extractAllTo(rootDir, true);
+
+        // Reload components in memory
+        aiEngine.loadKB();
+        aiEngine.loadConversations();
+        aiEngine.loadHandoffs();
+        analytics.load();
+
+        console.log('📦 Complete Backup successfully restored to bot.');
+        res.json({ success: true, message: 'Backup restored successfully' });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
