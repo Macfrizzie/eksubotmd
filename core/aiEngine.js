@@ -40,12 +40,40 @@ const STOPWORDS = new Set([
     'with', 'you', 'your', 'please', 'tell'
 ]);
 
+// --- GLOBAL TOKEN RATE LIMITER ---
+// Gemini Free Tier: ~32,000 TPM for gemini-1.5-flash, ~250,000 TPM for gemini-2.0-flash-lite
+// We target 28,000 TPM conservatively to avoid bursting over the limit
+const TOKEN_BUDGET_PER_MINUTE = 28000;
+
 class AsyncAIQueue {
-    constructor(concurrency = 2, delayBetweenMs = 900) {
+    constructor(concurrency = 1, delayBetweenMs = 1500) {
         this.concurrency = concurrency;
         this.delayBetweenMs = delayBetweenMs;
         this.queue = [];
         this.activeCount = 0;
+        // Sliding window token tracker (last 60 seconds)
+        this.tokenWindow = []; // [{ts, tokens}]
+    }
+
+    _usedTokensInLastMinute() {
+        const now = Date.now();
+        const cutoff = now - 60000;
+        this.tokenWindow = this.tokenWindow.filter(e => e.ts > cutoff);
+        return this.tokenWindow.reduce((sum, e) => sum + e.tokens, 0);
+    }
+
+    recordTokens(tokens) {
+        this.tokenWindow.push({ ts: Date.now(), tokens });
+    }
+
+    async waitForTokenBudget(estimatedTokens) {
+        while (this._usedTokensInLastMinute() + estimatedTokens > TOKEN_BUDGET_PER_MINUTE) {
+            const oldest = this.tokenWindow[0];
+            if (!oldest) break;
+            const waitMs = Math.max(0, (oldest.ts + 60000) - Date.now()) + 200;
+            console.warn(`⏳ AI token budget near limit. Waiting ${Math.ceil(waitMs/1000)}s before next request...`);
+            await new Promise(r => setTimeout(r, waitMs));
+        }
     }
 
     push(taskFn) {
@@ -76,9 +104,9 @@ class AsyncAIQueue {
 class AIEngine {
     constructor() {
         this.conversations = {};
-        this.handoffs = {}; // senderId -> { reason, query, senderName, timestamp }
+        this.handoffs = {};
         this.responseCache = new Map();
-        this.queue = new AsyncAIQueue(2, 900);
+        this.queue = new AsyncAIQueue(1, 1800); // Serialize requests with 1.8s gap to stay under TPM
         this.loadKB();
         this.loadConversations();
         this.loadHandoffs();
@@ -261,36 +289,37 @@ class AIEngine {
         scored.sort((a, b) => b.score - a.score);
         const matches = scored.filter(s => s.score > 0).map(s => s.entry);
 
-        // Return top 2-3 most relevant documents to minimize token usage and prevent 429
+        // Return ONLY the top 1 most relevant document to minimize per-request token usage
         if (matches.length > 0) {
-            return matches.slice(0, 3);
+            return matches.slice(0, 1);
         }
 
-        // Fallback: If no strong match found, return top 2 entries
-        return entries.slice(0, 2);
+        // Fallback: Return just the top entry
+        return entries.slice(0, 1);
+    }
+
+    // Truncate a KB entry's content to a maximum character limit (preserves full sentences)
+    _truncateContent(content, maxChars = 1800) {
+        if (!content || content.length <= maxChars) return content;
+        const cut = content.lastIndexOf('\n', maxChars);
+        return (cut > 0 ? content.slice(0, cut) : content.slice(0, maxChars)).trim() + '\n...';
     }
 
     buildOptimizedPrompt(userQuery, senderName = 'Friend') {
         const relevantEntries = this.getRelevantEntries(userQuery);
         const kbContext = relevantEntries
-            .map(e => `[TOPIC: ${e.title}]\n${e.content}`)
-            .join('\n\n---\n\n');
+            .map(e => `[${e.title}]\n${this._truncateContent(e.content, 1800)}`)
+            .join('\n\n');
 
         const cleanName = (senderName && senderName !== 'Friend' && senderName !== 'User' && senderName !== 'undefined') ? senderName.trim() : null;
 
+        // Lean, compact system prompt to minimize input tokens
         return `${this.kb.systemPrompt}
-
-USER'S NAME: ${cleanName || 'Friend'}
-=== KNOWLEDGE BASE CONTEXT (RELEVANT EXCERPTS) ===
-${kbContext || 'No specific document matched.'}
-=================================================
-Instructions:
-${cleanName ? `- The user chatting with you is named "${cleanName}". Address them warmly and naturally by their name (e.g. "Hello ${cleanName}!").` : '- Be polite, helpful, and friendly.'}
-- Use the excerpts above to answer accurately based on the Knowledge Base.
-- Keep answers direct, friendly, and complete. Never cut off mid-sentence.
-- For simple questions, answer in 2 to 3 clear sentences.
-- For document checklists, steps, or procedures, format them cleanly using bullet points or numbered lists so no essential requirement is omitted.
-- If completely unknown from the context or if user asks for human/admin, inform them and include: [HANDOFF_NEEDED: <brief reason>].`;
+${cleanName ? `\nUser's name: ${cleanName}` : ''}
+=== KB ===
+${kbContext || 'No matching info.'}
+==========
+Rules: Answer concisely and completely. For lists/steps use bullet points. If not in the KB, tell user and add [HANDOFF_NEEDED: reason].`;
     }
 
     getUserHistory(senderId) {
@@ -492,14 +521,15 @@ FORMAT YOUR RESPONSE EXACTLY AS:
             baseModel = 'gemini-1.5-flash';
         }
 
-        // Candidate model pool: if one model hits quota or 429, fall back to another family
+        // Candidate model pool — order matters: try highest quota model first on 429
+        // gemini-2.0-flash-lite has ~250K TPM free (vs 32K for 1.5-flash)
         const modelOrder = [baseModel];
         if (baseModel === 'gemini-1.5-flash') {
-            modelOrder.push('gemini-2.0-flash', 'gemini-1.5-flash-8b');
+            modelOrder.push('gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash-8b');
         } else if (baseModel === 'gemini-2.0-flash') {
-            modelOrder.push('gemini-1.5-flash', 'gemini-1.5-flash-8b');
+            modelOrder.push('gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-8b');
         } else {
-            modelOrder.push('gemini-1.5-flash', 'gemini-2.0-flash');
+            modelOrder.push('gemini-1.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash');
         }
 
         const contents = [];
@@ -513,9 +543,13 @@ FORMAT YOUR RESPONSE EXACTLY AS:
             contents,
             generationConfig: {
                 temperature: this.kb.temperature || 0.7,
-                maxOutputTokens: 1200 // Increased from 400 to prevent message cut-offs!
+                maxOutputTokens: 1200
             }
         };
+
+        // Estimate input tokens and enforce global TPM budget before calling API
+        const estimatedInputTokens = Math.ceil((systemInstruction.length + userQuery.length) / 4);
+        await this.queue.waitForTokenBudget(estimatedInputTokens + 300); // +300 for expected output
 
         let lastError = null;
 
@@ -534,6 +568,10 @@ FORMAT YOUR RESPONSE EXACTLY AS:
                     const candidate = response.data?.candidates?.[0];
                     const text = candidate?.content?.parts?.[0]?.text?.trim();
                     if (text) {
+                        // Record actual token usage in the sliding window
+                        const usageTokens = (response.data?.usageMetadata?.totalTokenCount) ||
+                            estimatedInputTokens + Math.ceil(text.length / 4);
+                        this.queue.recordTokens(usageTokens);
                         return text;
                     }
                 } catch (err) {
