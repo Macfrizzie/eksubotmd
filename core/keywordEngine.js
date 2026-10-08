@@ -219,6 +219,8 @@ class KeywordEngine {
         if (!this.enabled) return null;
         if (!userQuery || typeof userQuery !== 'string') return null;
         const text = userQuery.trim().toLowerCase();
+        // Normalize by stripping leading/trailing punctuation like "?", "!", ".", quotes
+        const textClean = text.replace(/^[^\w\s]+|[^\w\s]+$/g, '').trim();
 
         for (const rule of this.rules) {
             if (!rule.enabled) continue;
@@ -241,29 +243,29 @@ class KeywordEngine {
 
                 switch (type) {
                     case 'exact':
-                        isMatch = (text === kw);
+                        isMatch = (text === kw || (textClean && textClean === kw));
                         break;
 
                     case 'startswith':
                     case 'starts with':
-                        isMatch = text.startsWith(kw);
+                        isMatch = text.startsWith(kw) || (textClean && textClean.startsWith(kw));
                         break;
 
                     case 'endswith':
                     case 'ends with':
-                        isMatch = text.endsWith(kw);
+                        isMatch = text.endsWith(kw) || (textClean && textClean.endsWith(kw));
                         break;
 
                     case 'contains':
-                        isMatch = text.includes(kw);
+                        isMatch = text.includes(kw) || (textClean && textClean.includes(kw));
                         break;
 
                     case 'similar':
                     case 'fuzzy':
-                        if (new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i').test(text)) {
+                        if (new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i').test(text) || (textClean && new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i').test(textClean))) {
                             isMatch = true;
                         } else {
-                            const queryWords = text.split(/\s+/);
+                            const queryWords = (textClean || text).split(/\s+/);
                             for (const word of queryWords) {
                                 if (calculateSimilarity(word, kw) >= 0.72) {
                                     isMatch = true;

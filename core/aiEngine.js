@@ -516,21 +516,14 @@ FORMAT YOUR RESPONSE EXACTLY AS:
         const apiKeys = rawKeyString.split(',').map(k => k.trim()).filter(Boolean);
         if (apiKeys.length === 0) throw new Error('GEMINI_API_KEY is not configured');
 
-        let baseModel = this.kb.model || 'gemini-1.5-flash';
-        if (baseModel.includes('3.8') || !baseModel) {
+        let baseModel = (this.kb.model || 'gemini-1.5-flash').replace(/^models\//, '').trim();
+        if (baseModel.includes('3.8') || baseModel.includes('lite') || !baseModel) {
             baseModel = 'gemini-1.5-flash';
         }
 
-        // Candidate model pool — order matters: try highest quota model first on 429
-        // gemini-2.0-flash-lite has ~250K TPM free (vs 32K for 1.5-flash)
-        const modelOrder = [baseModel];
-        if (baseModel === 'gemini-1.5-flash') {
-            modelOrder.push('gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash-8b');
-        } else if (baseModel === 'gemini-2.0-flash') {
-            modelOrder.push('gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-8b');
-        } else {
-            modelOrder.push('gemini-1.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash');
-        }
+        // Verified production Google Gemini models
+        const candidatePool = [baseModel, 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-pro'];
+        const modelOrder = [...new Set(candidatePool.filter(Boolean))];
 
         const contents = [];
         for (const msg of history) {
@@ -557,7 +550,8 @@ FORMAT YOUR RESPONSE EXACTLY AS:
             const apiKey = apiKeys[(this._keyIndex || 0 + kIdx) % apiKeys.length];
 
             for (const modelToTry of modelOrder) {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent?key=${apiKey}`;
+                const cleanModelName = modelToTry.replace(/^models\//, '').trim();
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelName}:generateContent?key=${apiKey}`;
 
                 try {
                     const response = await axios.post(url, payload, {
@@ -577,12 +571,20 @@ FORMAT YOUR RESPONSE EXACTLY AS:
                 } catch (err) {
                     lastError = err;
                     const status = err.response?.status;
+                    const errMsg = err.response?.data?.error?.message || err.message;
+                    console.warn(`⚠️ Gemini API model ${cleanModelName} error (status ${status}): ${errMsg}`);
+
+                    // On 404 (Model name invalid on this endpoint version): continue to next model immediately
+                    if (status === 404) {
+                        continue;
+                    }
+
                     // On 429 (Resource Exhausted) or 503 (Overloaded)
                     if (status === 429 || status === 503) {
-                        console.warn(`⚠️ Gemini API ${modelToTry} returned ${status}. Trying fallback model or key...`);
                         await new Promise(r => setTimeout(r, 1200));
                         continue;
                     }
+
                     if (status === 400 || status === 403) {
                         break;
                     }

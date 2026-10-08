@@ -1576,9 +1576,9 @@
                     body: JSON.stringify({ query })
                 });
                 const data = await res.json();
-                let output = data.reply;
+                let output = data.reply || data.error;
                 if (typeof output === 'object' && output !== null) {
-                    output = output.reply || JSON.stringify(output);
+                    output = output.reply || output.error || JSON.stringify(output);
                 }
                 respBox.textContent = output || 'No response generated.';
             } catch (err) {

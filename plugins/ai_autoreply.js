@@ -21,7 +21,14 @@ Module({
     fromMe: false
 }, async (m, text) => {
     try {
-        if (m.fromMe || m.isOwner) return;
+        if (m.fromMe) return;
+
+        const clean = text ? text.trim() : '';
+        if (!clean) return;
+
+        // Skip command executions
+        const prefix = process.env.PREFIX || '.';
+        if (clean.startsWith(prefix)) return;
 
         analytics.recordMessage(m.sender, false);
 
@@ -31,20 +38,8 @@ Module({
         // If both Keyword Engine and AI are disabled, do nothing
         if (!kwConfig.enabled && !kb.enabled) return;
 
-        // Skip commands
-        const prefix = process.env.PREFIX || '.';
-        if (text && text.trim().startsWith(prefix)) return;
-
-        // DM only enforcement
+        // DM only enforcement (applies to AI and auto-replies)
         if (kb.dmOnly && m.isGroup) return;
-
-        const clean = text.trim();
-        if (!clean) return;
-
-        // Check if user is currently paused in Human Handoff mode
-        if (aiEngine.isUserPaused(m.sender)) {
-            return; // Let the human owner chat without AI interference
-        }
 
         const senderName = (m.pushName && m.pushName !== 'User') ? m.pushName : (m.senderName || 'Friend');
 
@@ -52,6 +47,7 @@ Module({
         if (kwConfig.enabled) {
             const kwMatch = keywordEngine.findMatch(clean);
             if (kwMatch) {
+                console.log(`🎯 [KeywordEngine] User ${m.sender} triggered rule '${kwMatch.id}' with query: "${clean}"`);
                 const rawResponses = (Array.isArray(kwMatch.responses) && kwMatch.responses.length > 0)
                     ? kwMatch.responses
                     : [kwMatch.response || ''];
@@ -73,8 +69,16 @@ Module({
                     } catch (e) {}
 
                     // Delay between multiple chat bubbles
-                    await new Promise(r => setTimeout(r, i === 0 ? 400 : 900));
-                    await m.reply(replyText);
+                    await new Promise(r => setTimeout(r, i === 0 ? 300 : 800));
+
+                    try {
+                        await m.reply(replyText);
+                    } catch (replyErr) {
+                        console.warn('⚠️ m.reply fallback triggered:', replyErr.message);
+                        if (m.client?.sendMessage) {
+                            await m.client.sendMessage(m.jid, { text: replyText });
+                        }
+                    }
                 }
 
                 try {
@@ -95,6 +99,11 @@ Module({
 
         // 3. If AI is disabled in Hybrid mode, do not call AI
         if (!kb.enabled) return;
+
+        // 4. Check if user is currently paused in Human Handoff mode
+        if (aiEngine.isUserPaused(m.sender)) {
+            return; // Let the human owner chat without AI interference
+        }
 
         // 2. Debounce and Rate-Limiting Protection for AI API (Prevents 429 Quota Spikes)
         const now = Date.now();
@@ -165,7 +174,7 @@ Module({
     fromMe: false
 }, async (m) => {
     try {
-        if (m.fromMe || m.isOwner) return;
+        if (m.fromMe) return;
 
         analytics.recordMessage(m.sender, false);
 

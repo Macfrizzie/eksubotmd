@@ -336,7 +336,7 @@ async function startEksuBot() {
                     listeners.forEach(async (plugin) => {
                         try {
                             // Enforce fromMe permissions on listeners
-                            if (plugin.fromMe === false && (m.fromMe || m.isOwner)) return;
+                            if (plugin.fromMe === false && m.fromMe) return;
                             if (plugin.fromMe === true && !m.isOwner) return;
 
                             if (plugin.on === 'message') {

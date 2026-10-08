@@ -217,19 +217,25 @@ app.delete('/api/knowledge/entry/:id', (req, res) => {
 app.post('/api/knowledge/test', async (req, res) => {
     try {
         const { query } = req.body;
-        if (!query) return res.status(400).json({ error: 'Query is required' });
+        if (!query) return res.status(400).json({ error: 'Query is required', reply: 'Query is required' });
         const result = await aiEngine.generateReply(query, 'web_test', 'Web User', true);
 
         let textReply = 'No response generated.';
         if (typeof result === 'string') {
             textReply = result;
         } else if (result && typeof result === 'object') {
-            textReply = result.reply || (result.handoff ? `[Human Handoff Needed: ${result.handoff.reason}]` : 'No response generated.');
+            if (typeof result.reply === 'string') {
+                textReply = result.reply;
+            } else if (result.reply && typeof result.reply === 'object') {
+                textReply = result.reply.reply || JSON.stringify(result.reply);
+            } else if (result.handoff) {
+                textReply = `[Human Handoff Needed: ${result.handoff.reason}]`;
+            }
         }
 
         res.json({ reply: textReply });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ error: e.message, reply: `Error: ${e.message}` });
     }
 });
 
