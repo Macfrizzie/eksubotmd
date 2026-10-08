@@ -516,14 +516,8 @@ FORMAT YOUR RESPONSE EXACTLY AS:
         const apiKeys = rawKeyString.split(',').map(k => k.trim()).filter(Boolean);
         if (apiKeys.length === 0) throw new Error('GEMINI_API_KEY is not configured');
 
-        let baseModel = (this.kb.model || 'gemini-1.5-flash').replace(/^models\//, '').trim();
-        if (baseModel.includes('3.8') || baseModel.includes('lite') || !baseModel) {
-            baseModel = 'gemini-1.5-flash';
-        }
-
-        // Verified production Google Gemini models
-        const candidatePool = [baseModel, 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-pro'];
-        const modelOrder = [...new Set(candidatePool.filter(Boolean))];
+        // Use the exact model configured by the user without forcing presets
+        const cleanModelName = (this.kb.model || 'gemini-1.5-flash').replace(/^models\//, '').trim();
 
         const contents = [];
         for (const msg of history) {
@@ -548,46 +542,42 @@ FORMAT YOUR RESPONSE EXACTLY AS:
 
         for (let kIdx = 0; kIdx < apiKeys.length; kIdx++) {
             const apiKey = apiKeys[(this._keyIndex || 0 + kIdx) % apiKeys.length];
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelName}:generateContent?key=${apiKey}`;
 
-            for (const modelToTry of modelOrder) {
-                const cleanModelName = modelToTry.replace(/^models\//, '').trim();
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelName}:generateContent?key=${apiKey}`;
+            try {
+                const response = await axios.post(url, payload, {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 28000
+                });
 
-                try {
-                    const response = await axios.post(url, payload, {
-                        headers: { 'Content-Type': 'application/json' },
-                        timeout: 28000
-                    });
+                const candidate = response.data?.candidates?.[0];
+                const text = candidate?.content?.parts?.[0]?.text?.trim();
+                if (text) {
+                    // Record actual token usage in the sliding window
+                    const usageTokens = (response.data?.usageMetadata?.totalTokenCount) ||
+                        estimatedInputTokens + Math.ceil(text.length / 4);
+                    this.queue.recordTokens(usageTokens);
+                    return text;
+                }
+            } catch (err) {
+                lastError = err;
+                const status = err.response?.status;
+                const errMsg = err.response?.data?.error?.message || err.message;
+                console.warn(`⚠️ Gemini API model '${cleanModelName}' error (status ${status}): ${errMsg}`);
 
-                    const candidate = response.data?.candidates?.[0];
-                    const text = candidate?.content?.parts?.[0]?.text?.trim();
-                    if (text) {
-                        // Record actual token usage in the sliding window
-                        const usageTokens = (response.data?.usageMetadata?.totalTokenCount) ||
-                            estimatedInputTokens + Math.ceil(text.length / 4);
-                        this.queue.recordTokens(usageTokens);
-                        return text;
-                    }
-                } catch (err) {
-                    lastError = err;
-                    const status = err.response?.status;
-                    const errMsg = err.response?.data?.error?.message || err.message;
-                    console.warn(`⚠️ Gemini API model ${cleanModelName} error (status ${status}): ${errMsg}`);
+                // If rate-limited (429 or 503), try next available key in pool
+                if (status === 429 || status === 503) {
+                    await new Promise(r => setTimeout(r, 1200));
+                    continue;
+                }
 
-                    // On 404 (Model name invalid on this endpoint version): continue to next model immediately
-                    if (status === 404) {
-                        continue;
-                    }
+                // If model name is not recognized (404), report clear descriptive error
+                if (status === 404) {
+                    throw new Error(`Model '${cleanModelName}' was not found on Google Gemini API (HTTP 404). Please verify your model name in AI Settings.`);
+                }
 
-                    // On 429 (Resource Exhausted) or 503 (Overloaded)
-                    if (status === 429 || status === 503) {
-                        await new Promise(r => setTimeout(r, 1200));
-                        continue;
-                    }
-
-                    if (status === 400 || status === 403) {
-                        break;
-                    }
+                if (status === 400 || status === 403) {
+                    throw new Error(`Google Gemini API error (${status}): ${errMsg}`);
                 }
             }
         }
@@ -597,7 +587,7 @@ FORMAT YOUR RESPONSE EXACTLY AS:
             return "⚠️ *AI Notice:* High demand detected on Google API. Please try asking again in a few moments or type *.menu* for quick bot commands.";
         }
 
-        throw lastError || new Error('Failed to generate response from Gemini');
+        throw lastError || new Error(`Failed to generate response using model '${cleanModelName}'`);
     }
 
     async callOpenAI(systemInstruction, history, userQuery) {
@@ -610,7 +600,8 @@ FORMAT YOUR RESPONSE EXACTLY AS:
         }
         messages.push({ role: 'user', content: userQuery });
 
-        const model = this.kb.model.startsWith('gpt') ? this.kb.model : 'gpt-4o-mini';
+        // Use the exact model configured by the user
+        const model = (this.kb.model || 'gpt-4o-mini').trim();
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model,
             messages,
