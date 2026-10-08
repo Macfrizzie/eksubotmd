@@ -5,17 +5,37 @@
   "temperature": 0.7,
   "dmOnly": true,
   "cooldownMinutes": 0,
-  "systemPrompt": "You are the helpful AI assistant for Eksu-MD.\nYou answer questions politely, concisely, and helpfully using the provided Knowledge Base.\nIf you do not know the answer based on the knowledge base, politely inform the user and tell them an admin will get back to them.\nKeep answers under 3-4 sentences unless detailed explanation is asked. Speak in a friendly tone.",
+  "systemPrompt": "You are the friendly, helpful AI assistant for Eksu-MD on WhatsApp.\nAnswer questions accurately, politely, and clearly based on the provided Knowledge Base documents.\nFor simple questions, keep answers direct and conversational (2-3 sentences).\nFor admission checklists, required screening documents, and multi-step workflows, list all items clearly with bullet points without cutting off.\nNever state that you don't know if the information is contained in the knowledge base excerpts.\nIf completely unknown or user asks for a human/admin, state that an admin will assist them and end with: [HANDOFF_NEEDED: Not found in knowledge base].",
   "entries": [
     {
       "id": "kb_welcome",
       "title": "Welcome & Bot Overview",
-      "content": "Eksu-MD is a WhatsApp assistant bot designed for Ekiti State University students and community members. It provides campus information, utilities, group management, and automated support."
+      "content": "Eksu-MD is a WhatsApp assistant bot designed for Ekiti State University students and community members. It provides campus information, utilities, group management, and automated support.",
+      "updatedAt": "2026-10-08T20:00:00.000Z"
     },
     {
       "id": "kb_commands",
       "title": "Commands Information",
-      "content": "Users can type .menu to view all available commands. Popular commands include .ping (check latency), .weather (city weather), .sticker (convert image to sticker), and .vv (recover view-once media)."
+      "content": "Users can type .menu to view all available commands. Popular commands include .ping (check latency), .weather (city weather), .sticker (convert image to sticker), and .vv (recover view-once media).",
+      "updatedAt": "2026-10-08T20:00:00.000Z"
+    },
+    {
+      "id": "kb_jamb_caps",
+      "title": "JAMB CAPS Admission Progression & Portal Guide",
+      "content": "1. Progression of Admission Status on JAMB CAPS:\n- Not Admitted: The candidate has not yet been selected by an institution. Admissions roll out in batches; candidates should check periodically (every 24–48 hours).\n- Proposed for Admission / Recommended: The institution has shortlisted and submitted the candidate's name to JAMB for verification.\n- Admission in Progress (AIP): JAMB is actively validating credentials and processing the recommendation.\n  * Critical Rule: AIP, Proposed, or Recommended statuses are NOT final offers. Candidates cannot accept or pay fees at this stage. Do NOT attempt to 'fast-track' this status through third parties (scam risk). Ensure your O’Level results are correctly uploaded to the JAMB portal.\n- Admission Offered / Congratulations (Admitted): The official offer is ready and requires candidate confirmation (Accept or Reject).\n- Transfer Approval (Conditional): If the institution proposes a change of course, the candidate must explicitly accept or reject the transfer offer before the main admission processing can conclude.\n\n2. Accessing JAMB CAPS (Desktop Mode Setup on Mobile):\nMobile browsers must use desktop mode to access the complete CAPS interface:\n- Android (Chrome): Open Chrome -> Tap the three-dot menu (⋮) in the top right -> Check 'Desktop site'.\n- iOS / iPhone (Chrome): Open Chrome -> Tap the three-dot menu (•••) -> Select 'Request Desktop Site'.\n- Navigation Steps:\n  1. Navigate to the JAMB e-Facility login portal: https://efacility.jamb.gov.ng/Login\n  2. Authenticate using registered JAMB profile email and password.\n  3. Click Check Admission Status -> Select Access My CAPS -> Navigate to Regular Admission Status.\n\n3. Methods to Accept or Reject Admission on JAMB CAPS:\n- Method A: Online Portal (Browser in desktop mode): Select either Accept Admission or Reject Admission. Immediately print the official JAMB Admission Letter and the original JAMB Result Slip.\n- Method B: SMS (Linked SIM Only): Send [JAMB_REGISTRATION_NUMBER] [ACTION] to 55019 or 66019.\n  * Accept Example: 202550006742TY ACCEPT\n  * Reject Example: 202556857673GH REJECT",
+      "updatedAt": "2026-10-08T20:00:00.000Z"
+    },
+    {
+      "id": "kb_eksu_screening",
+      "title": "EKSU Post-Admission Workflow & Screening Documents Checklist",
+      "content": "1. EKSU Post-Admission Workflow:\n[Admitted on JAMB CAPS] -> [Accept on JAMB CAPS & Print JAMB Documents] -> [Monitor EKSU Portal until status updates to 'Admitted'] -> [Pay Acceptance Fee on EKSU Portal] -> [Online Screening & Document Upload] -> [Approval: Print Verification & Clearance Forms] -> [Matric Number Assignment & Fee Payments / Physical Clearance].\n\n2. Critical Transition Rule (Financial Safety):\nNever pay acceptance fees or school fees until admission has officially reflected on BOTH:\n1. JAMB CAPS (Accepted and documented).\n2. The official EKSU portal: https://eksuportal.eksu.edu.ng/app_signin.php (logged in with registered email and password).\n\n3. Required Documents Checklist (Physical & Online Clearance):\n1. Birth Certificate (certified true copy).\n2. Local Government Identification / State of Origin Certificate.\n3. O’Level Result Slip / Certificate (WAEC, NECO, or NABTEB).\n4. Original JAMB Result Slip (Coloured printout).\n5. JAMB Admission Letter (Institution Copy; Coloured printout).\n6. EKSU Admission Letter (Coloured printout).\n7. EKSU Screening Slip.\n8. EKSU Clearance Form (downloaded from portal post-admission).\n9. Guarantor’s Letter and Attestation / Reference Letter (POLICY: External reference letters are invalid; download the university-approved templates directly from the EKSU student portal).\n10. Passport Photographs: Minimum of 12 copies (white background).\n11. Physical copies: Maintain at least 5 complete sets of photocopies for all documents, including payment receipts, stored securely in an official file.\n\n4. Online Screening & Clearance (Common Rejection Causes):\nCommon causes of screening disapproval: Mismatched personal details (names, dates of birth, or state), incorrect JAMB Registration Number, blurry or low-resolution scans, forged certificates, or uploading non-portal guarantor/reference forms. Following clearance, print Verification and Clearance Forms from the portal to receive your Matriculation Number.",
+      "updatedAt": "2026-10-08T20:00:00.000Z"
+    },
+    {
+      "id": "kb_eksu_notices",
+      "title": "EKSU Academic Notices, Post-UTME & Recess Policy",
+      "content": "1. Post-UTME Timeline:\n2026/2027 Academic Session: EKSU Post-UTME application window is extended until October 31, 2026.\n\n2. Admission Batch Processing:\nAdmissions are uploaded in stages. The release of subsequent lists (e.g. Batch 3) follows internal institutional recommendation uploads to JAMB CAPS.\n\n3. ASUU Strike vs. Annual Recess Policy:\n- Distinction: An ASUU annual recess (e.g., 5-week staff break running from September 22, 2026, to November 5, 2026) is a staff recess that pauses standard classroom lectures. It does NOT equal a complete university shutdown.\n- Impact on Freshers & Registration: The institutional academic calendar remains intact. Administrative clearance, freshers' portal registration, departmental screenings, practical fieldwork, and management-approved university processes proceed according to the directives of university management and faculties.",
+      "updatedAt": "2026-10-08T20:00:00.000Z"
     }
   ]
 }

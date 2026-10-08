@@ -208,22 +208,29 @@ class AIEngine {
         return this.kb.entries.length < initialLen;
     }
 
-    // Retrieve relevant entries (Gemini 1.5 has 1M token context window, so we don't prematurely discard documents)
+    // Retrieve relevant entries with intelligent scoring & greeting detection to prevent token exhaustion (429)
     getRelevantEntries(userQuery) {
         const entries = this.kb.entries || [];
         if (entries.length === 0) return [];
 
-        // Calculate total characters in knowledge base
-        const totalChars = entries.reduce((acc, e) => acc + (e.content?.length || 0) + (e.title?.length || 0), 0);
+        const clean = (userQuery || '').toLowerCase().trim();
 
-        // If knowledge base is reasonable size (under 45,000 characters / ~11,000 tokens),
-        // pass ALL entries directly to Gemini so it has 100% of the knowledge context without false-negative dropouts!
-        if (totalChars < 45000 && entries.length <= 25) {
+        // 1. Check for simple greetings & pleasantries
+        const isGreeting = /^(hi|hello|hey|yo|sup|good (morning|afternoon|evening)|howdy|hola)(\s+[a-z]+)?$/i.test(clean);
+        if (isGreeting) {
+            // For greetings, only return the welcome overview entry to avoid token bloat
+            const welcome = entries.find(e => e.id === 'kb_welcome' || (e.title && e.title.toLowerCase().includes('welcome')));
+            return welcome ? [welcome] : entries.slice(0, 1);
+        }
+
+        // If total entries is very small (<= 2) and short (< 2500 chars), return all
+        const totalChars = entries.reduce((acc, e) => acc + (e.content?.length || 0) + (e.title?.length || 0), 0);
+        if (entries.length <= 2 && totalChars < 2500) {
             return entries;
         }
 
-        // For massive knowledge bases, score and return the top 8 most relevant documents
-        const words = userQuery.toLowerCase()
+        // 2. Intelligent Scoring for targeted context retrieval
+        const words = clean
             .replace(/[^\w\s]/g, '')
             .split(/\s+/)
             .filter(w => w.length > 2 && !STOPWORDS.has(w));
@@ -232,16 +239,35 @@ class AIEngine {
             let score = 0;
             const titleLower = (entry.title || '').toLowerCase();
             const contentLower = (entry.content || '').toLowerCase();
+
+            // Direct phrase match in title
+            if (clean.length > 4 && titleLower.includes(clean)) score += 20;
+
             for (const word of words) {
-                if (titleLower.includes(word)) score += 5;
-                if (contentLower.includes(word)) score += 2;
+                // Exact word in title: High priority
+                if (titleLower.includes(word)) score += 8;
+                // Word in content: Medium priority
+                if (contentLower.includes(word)) score += 3;
             }
+
+            // Keyword domain boosts
+            if (/jamb|caps|aip|proposed|recommended|transfer|sms|55019|66019/i.test(clean) && /caps|jamb/i.test(titleLower)) score += 15;
+            if (/document|screening|clearance|fee|acceptance|guarantor|matric|portal/i.test(clean) && /screening|clearance|document|workflow/i.test(titleLower)) score += 15;
+            if (/asuu|strike|recess|batch|deadline|timeline|post-utme|session/i.test(clean) && /notice|recess|session|timeline/i.test(titleLower)) score += 15;
+
             return { entry, score };
         });
 
         scored.sort((a, b) => b.score - a.score);
         const matches = scored.filter(s => s.score > 0).map(s => s.entry);
-        return matches.length > 0 ? matches.slice(0, 8) : entries.slice(0, 6);
+
+        // Return top 2-3 most relevant documents to minimize token usage and prevent 429
+        if (matches.length > 0) {
+            return matches.slice(0, 3);
+        }
+
+        // Fallback: If no strong match found, return top 2 entries
+        return entries.slice(0, 2);
     }
 
     buildOptimizedPrompt(userQuery, senderName = 'Friend') {
@@ -259,10 +285,12 @@ USER'S NAME: ${cleanName || 'Friend'}
 ${kbContext || 'No specific document matched.'}
 =================================================
 Instructions:
-${cleanName ? `- The user chatting with you is named "${cleanName}". Address them warmly and naturally by their name (e.g. "Hello ${cleanName}!", or naturally incorporating "${cleanName}" in your response), making the conversation feel personal.` : '- Be polite, helpful, and friendly.'}
+${cleanName ? `- The user chatting with you is named "${cleanName}". Address them warmly and naturally by their name (e.g. "Hello ${cleanName}!").` : '- Be polite, helpful, and friendly.'}
 - Use the excerpts above to answer accurately based on the Knowledge Base.
-- Answer in 1 to 3 natural, conversational sentences.
-- If completely unknown from the context or the user requests human/admin, inform them and include: [HANDOFF_NEEDED: <brief reason>].`;
+- Keep answers direct, friendly, and complete. Never cut off mid-sentence.
+- For simple questions, answer in 2 to 3 clear sentences.
+- For document checklists, steps, or procedures, format them cleanly using bullet points or numbered lists so no essential requirement is omitted.
+- If completely unknown from the context or if user asks for human/admin, inform them and include: [HANDOFF_NEEDED: <brief reason>].`;
     }
 
     getUserHistory(senderId) {
@@ -455,15 +483,24 @@ FORMAT YOUR RESPONSE EXACTLY AS:
     }
 
     async callGemini(systemInstruction, history, userQuery) {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
+        const rawKeyString = process.env.GEMINI_API_KEY || '';
+        const apiKeys = rawKeyString.split(',').map(k => k.trim()).filter(Boolean);
+        if (apiKeys.length === 0) throw new Error('GEMINI_API_KEY is not configured');
 
-        let model = this.kb.model || 'gemini-1.5-flash';
-        if (model.includes('3.8') || !model) {
-            model = 'gemini-1.5-flash';
+        let baseModel = this.kb.model || 'gemini-1.5-flash';
+        if (baseModel.includes('3.8') || !baseModel) {
+            baseModel = 'gemini-1.5-flash';
         }
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        // Candidate model pool: if one model hits quota or 429, fall back to another family
+        const modelOrder = [baseModel];
+        if (baseModel === 'gemini-1.5-flash') {
+            modelOrder.push('gemini-2.0-flash', 'gemini-1.5-flash-8b');
+        } else if (baseModel === 'gemini-2.0-flash') {
+            modelOrder.push('gemini-1.5-flash', 'gemini-1.5-flash-8b');
+        } else {
+            modelOrder.push('gemini-1.5-flash', 'gemini-2.0-flash');
+        }
 
         const contents = [];
         for (const msg of history) {
@@ -476,30 +513,51 @@ FORMAT YOUR RESPONSE EXACTLY AS:
             contents,
             generationConfig: {
                 temperature: this.kb.temperature || 0.7,
-                maxOutputTokens: 400
+                maxOutputTokens: 1200 // Increased from 400 to prevent message cut-offs!
             }
         };
 
-        let attempts = 2;
-        while (attempts > 0) {
-            try {
-                const response = await axios.post(url, payload, {
-                    headers: { 'Content-Type': 'application/json' },
-                    timeout: 25000
-                });
-                const candidate = response.data?.candidates?.[0];
-                return candidate?.content?.parts?.[0]?.text?.trim() || null;
-            } catch (err) {
-                attempts--;
-                const status = err.response?.status;
-                if ((status === 503 || status === 429 || err.code === 'ECONNABORTED') && attempts > 0) {
-                    await new Promise(r => setTimeout(r, 1500));
-                    continue;
+        let lastError = null;
+
+        for (let kIdx = 0; kIdx < apiKeys.length; kIdx++) {
+            const apiKey = apiKeys[(this._keyIndex || 0 + kIdx) % apiKeys.length];
+
+            for (const modelToTry of modelOrder) {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent?key=${apiKey}`;
+
+                try {
+                    const response = await axios.post(url, payload, {
+                        headers: { 'Content-Type': 'application/json' },
+                        timeout: 28000
+                    });
+
+                    const candidate = response.data?.candidates?.[0];
+                    const text = candidate?.content?.parts?.[0]?.text?.trim();
+                    if (text) {
+                        return text;
+                    }
+                } catch (err) {
+                    lastError = err;
+                    const status = err.response?.status;
+                    // On 429 (Resource Exhausted) or 503 (Overloaded)
+                    if (status === 429 || status === 503) {
+                        console.warn(`⚠️ Gemini API ${modelToTry} returned ${status}. Trying fallback model or key...`);
+                        await new Promise(r => setTimeout(r, 1200));
+                        continue;
+                    }
+                    if (status === 400 || status === 403) {
+                        break;
+                    }
                 }
-                throw err;
             }
         }
-        return null;
+
+        // Friendly notice if completely rate-limited instead of raw crash
+        if (lastError?.response?.status === 429 || lastError?.message?.includes('429')) {
+            return "⚠️ *AI Notice:* High demand detected on Google API. Please try asking again in a few moments or type *.menu* for quick bot commands.";
+        }
+
+        throw lastError || new Error('Failed to generate response from Gemini');
     }
 
     async callOpenAI(systemInstruction, history, userQuery) {
@@ -517,13 +575,13 @@ FORMAT YOUR RESPONSE EXACTLY AS:
             model,
             messages,
             temperature: this.kb.temperature || 0.7,
-            max_tokens: 400
+            max_tokens: 1000
         }, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
             },
-            timeout: 20000
+            timeout: 25000
         });
 
         return response.data?.choices?.[0]?.message?.content?.trim() || null;
