@@ -152,6 +152,26 @@ async function startEksuBot() {
         const sessionDir = path.resolve(__dirname, 'session');
         if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
+        // Restore session from SESSION_ID if session/creds.json is absent
+        const credsPath = path.join(sessionDir, 'creds.json');
+        if (!fs.existsSync(credsPath) && process.env.SESSION_ID) {
+            try {
+                let b64 = process.env.SESSION_ID.trim();
+                if (b64.startsWith('EKSU_MD_')) b64 = b64.slice('EKSU_MD_'.length);
+                else if (b64.startsWith('EKSU-MD~')) b64 = b64.slice('EKSU-MD~'.length);
+                else if (b64.startsWith('EKSU~')) b64 = b64.slice('EKSU~'.length);
+
+                const decoded = Buffer.from(b64, 'base64').toString('utf8');
+                const parsed = JSON.parse(decoded);
+                if (parsed && typeof parsed === 'object') {
+                    fs.writeFileSync(credsPath, JSON.stringify(parsed, null, 2), 'utf8');
+                    console.log('✅ WhatsApp session successfully restored from SESSION_ID!');
+                }
+            } catch (err) {
+                console.error('⚠️ Failed to restore session from SESSION_ID:', err.message);
+            }
+        }
+
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
         const { version } = await fetchLatestBaileysVersion();
 

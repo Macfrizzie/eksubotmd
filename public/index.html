@@ -200,6 +200,60 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Reusable WhatsApp Session ID Card -->
+                <div class="mt-4 pt-4 border-t border-slate-800/80 bg-slate-950/60 p-3 sm:p-4 rounded-xl border border-slate-800 space-y-3">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h4 class="text-xs font-bold text-white uppercase tracking-wider">Reusable WhatsApp Session ID</h4>
+                                    <span id="sessionStatusPill" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">Checking...</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-0.5">
+                                    Export your session token (<code class="text-indigo-300">EKSU_MD_...</code>) to deploy on any panel or VPS without re-pairing!
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <button type="button" onclick="openImportSessionModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+                                <i data-lucide="download" class="w-3.5 h-3.5 text-indigo-400"></i> Import ID
+                            </button>
+                            <button type="button" onclick="loadSessionInfo(true)" title="Refresh Session Token" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700 rounded-lg transition">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="sessionFoundBox" class="space-y-2">
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <div class="relative flex-1">
+                                <input type="password" id="sessionExportInput" readonly placeholder="Loading session token..." class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-3 pr-10 py-2 text-xs font-mono text-indigo-200 select-all focus:outline-none">
+                                <button type="button" onclick="toggleSessionVisibility()" id="sessionVisibilityBtn" title="Show/Hide Token" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200">
+                                    <i data-lucide="eye" id="sessionVisibilityIcon" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <button type="button" onclick="copySessionId()" id="copySessionBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow shadow-indigo-600/20 flex-shrink-0">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                <span id="copySessionBtnText">Copy Session ID</span>
+                            </button>
+                        </div>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-500 gap-1">
+                            <span id="sessionDetailsText">🔐 Keep this token private. It grants access to your WhatsApp account.</span>
+                            <span id="sessionUserPhone" class="font-mono text-slate-400"></span>
+                        </div>
+                    </div>
+
+                    <div id="sessionMissingBox" class="hidden text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg flex items-center gap-2">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0"></i>
+                        <span>No active session credentials yet. Link your phone using the pairing code above or import an existing Session ID.</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Terminal Box -->
@@ -449,6 +503,13 @@
                             <label class="text-xs font-medium text-slate-300">OpenAI API Key (Optional)</label>
                             <input type="password" name="OPENAI_API_KEY" placeholder="sk-..." class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono">
                         </div>
+                        <div class="md:col-span-2">
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-medium text-slate-300">Reusable Session ID (SESSION_ID)</label>
+                                <span class="text-[11px] text-slate-400 font-mono">Restores WhatsApp connection without phone pairing</span>
+                            </div>
+                            <input type="text" name="SESSION_ID" id="envSessionIdInput" placeholder="EKSU_MD_..." class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-xs sm:text-sm text-slate-100 font-mono">
+                        </div>
                     </div>
 
                     <div class="pt-4 border-t border-slate-800 flex justify-end">
@@ -477,14 +538,16 @@
                                 <i data-lucide="git-pull-request" class="w-3.5 h-3.5"></i> Sync with Git (Pull)
                             </button>
                         </div>
+                    </div>
+
                     <!-- Remote Repository URL -->
                     <div class="bg-slate-950 p-3.5 rounded-lg border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                         <div class="flex-1">
                             <label class="text-[11px] text-slate-400 block mb-1">GitHub Remote URL (Public repo recommended for 1-click passwordless sync)</label>
                             <input type="text" id="gitRemoteUrlInput" placeholder="https://github.com/USERNAME/eksubotmd.git" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:border-emerald-500 focus:outline-none">
                         </div>
-                        <button type="button" onclick="saveGitRemoteUrl()" class="sm:self-end px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition flex items-center justify-center gap-1.5 flex-shrink-0">
-                            <i data-lucide="link" class="w-3.5 h-3.5"></i> Save Git Link
+                        <button type="button" id="saveGitRemoteBtn" onclick="saveGitRemoteUrl()" class="sm:self-end px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition flex items-center justify-center gap-1.5 flex-shrink-0">
+                            <i data-lucide="link" class="w-3.5 h-3.5"></i> <span>Save Git Link</span>
                         </button>
                     </div>
 
@@ -887,6 +950,42 @@
         </div>
     </div>
 
+    <!-- Modal for Importing Reusable Session ID -->
+    <div id="importSessionModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                        <i data-lucide="key" class="w-4 h-4"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-white">Import Session ID</h3>
+                </div>
+                <button onclick="closeImportSessionModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <p class="text-xs text-slate-400 leading-relaxed">
+                Paste your previously saved <code class="text-indigo-300">EKSU_MD_...</code> token here to immediately restore your WhatsApp connection without requesting another pairing code.
+            </p>
+
+            <div>
+                <label class="text-xs font-medium text-slate-300">Session ID Token</label>
+                <textarea id="importSessionInput" rows="4" placeholder="EKSU_MD_eyJjcmVkcyI6..." class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs text-slate-100 font-mono leading-relaxed focus:border-indigo-500 focus:outline-none"></textarea>
+            </div>
+
+            <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-[11px] text-amber-300 flex items-start gap-2">
+                <i data-lucide="info" class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5"></i>
+                <span>Importing will overwrite <code class="text-amber-200">session/creds.json</code> and update <code class="text-amber-200">SESSION_ID</code> in <code class="text-amber-200">.env</code>, then automatically reboot the bot socket.</span>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button onclick="closeImportSessionModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Cancel</button>
+                <button onclick="submitImportSession()" id="submitImportBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow shadow-indigo-600/20">
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i> Restore & Connect
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Client Script -->
     <script>
         lucide.createIcons();
@@ -954,6 +1053,10 @@
                 txt.textContent = 'Connected';
                 txt.className = 'text-emerald-400 font-semibold';
                 pairing.classList.add('hidden');
+                if (!window._sessionLoadedOnce) {
+                    window._sessionLoadedOnce = true;
+                    loadSessionInfo();
+                }
             } else if (status.connecting) {
                 ind.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
                 txt.textContent = 'Connecting...';
@@ -1052,6 +1155,130 @@
             }
         }
 
+        // REUSABLE SESSION ID MANAGEMENT
+        async function loadSessionInfo(showFeedback = false) {
+            try {
+                const res = await fetch('/api/session/export');
+                const data = await res.json();
+                const sessionInput = document.getElementById('sessionExportInput');
+                const foundBox = document.getElementById('sessionFoundBox');
+                const missingBox = document.getElementById('sessionMissingBox');
+                const pill = document.getElementById('sessionStatusPill');
+                const phoneEl = document.getElementById('sessionUserPhone');
+                const envSessionInput = document.getElementById('envSessionIdInput');
+
+                if (data.success && data.hasSession && data.sessionId) {
+                    if (sessionInput) sessionInput.value = data.sessionId;
+                    if (envSessionInput && !envSessionInput.value) envSessionInput.value = data.sessionId;
+                    if (foundBox) foundBox.classList.remove('hidden');
+                    if (missingBox) missingBox.classList.add('hidden');
+                    if (pill) {
+                        pill.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+                        pill.textContent = data.registered ? 'Active & Registered' : 'Active Creds';
+                    }
+                    if (phoneEl) {
+                        phoneEl.textContent = data.userPhone ? `Phone: +${data.userPhone}` : '';
+                    }
+                    if (showFeedback) alert('Session token refreshed successfully!');
+                } else {
+                    if (sessionInput) sessionInput.value = '';
+                    if (foundBox) foundBox.classList.add('hidden');
+                    if (missingBox) missingBox.classList.remove('hidden');
+                    if (pill) {
+                        pill.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700';
+                        pill.textContent = 'No Active Session';
+                    }
+                    if (phoneEl) phoneEl.textContent = '';
+                    if (showFeedback) alert(data.message || 'No active session found.');
+                }
+            } catch (err) {
+                console.error('Error loading session info:', err);
+            }
+        }
+
+        async function copySessionId() {
+            const input = document.getElementById('sessionExportInput');
+            const token = input ? input.value.trim() : '';
+            if (!token) return alert('No Session ID available to copy.');
+
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(token);
+                } else {
+                    const temp = document.createElement('textarea');
+                    temp.value = token;
+                    document.body.appendChild(temp);
+                    temp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(temp);
+                }
+                const btnText = document.getElementById('copySessionBtnText');
+                if (btnText) btnText.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    if (btnText) btnText.textContent = 'Copy Session ID';
+                }, 2500);
+            } catch (err) {
+                prompt('Copy Session ID manually:', token);
+            }
+        }
+
+        function toggleSessionVisibility() {
+            const input = document.getElementById('sessionExportInput');
+            const icon = document.getElementById('sessionVisibilityIcon');
+            if (!input) return;
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (icon) icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                if (icon) icon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        function openImportSessionModal() {
+            document.getElementById('importSessionModal').classList.remove('hidden');
+            document.getElementById('importSessionInput').value = '';
+            lucide.createIcons();
+        }
+
+        function closeImportSessionModal() {
+            document.getElementById('importSessionModal').classList.add('hidden');
+        }
+
+        async function submitImportSession() {
+            const input = document.getElementById('importSessionInput');
+            const token = (input ? input.value : '').trim();
+            if (!token) return alert('Please paste your Session ID token.');
+
+            const btn = document.getElementById('submitImportBtn');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Restoring...`;
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/session/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId: token })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(data.message || 'Session imported successfully! Bot connection is restarting.');
+                    closeImportSessionModal();
+                    loadSessionInfo();
+                } else {
+                    alert('Import Error: ' + (data.error || 'Failed to restore session.'));
+                }
+            } catch (err) {
+                alert('Request failed: ' + err.message);
+            } finally {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
+        }
+
         function appendLog(entry) {
             const body = document.getElementById('terminalBody');
             const line = document.createElement('div');
@@ -1092,6 +1319,7 @@
             loadFirebaseStatus();
             loadAnalytics();
             loadHandoffQueue();
+            loadSessionInfo();
         });
 
         // ENV MANAGER
@@ -1875,6 +2103,13 @@
             const url = input ? input.value.trim() : '';
             if (!url) return alert('Please enter a GitHub repository URL.');
 
+            const btn = document.getElementById('saveGitRemoteBtn');
+            const origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> <span>Initializing...</span>`;
+                btn.disabled = true;
+            }
+
             try {
                 const res = await fetch('/api/git/remote', {
                     method: 'POST',
@@ -1883,13 +2118,19 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    alert('Git Remote URL updated successfully!');
+                    alert(data.message || 'Git initialized and remote URL updated successfully!');
                     loadGitStatus();
                 } else {
                     alert('Error saving remote: ' + (data.error || 'Check server logs'));
                 }
             } catch (err) {
                 alert('Network error saving Git remote: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                    lucide.createIcons();
+                }
             }
         }
 

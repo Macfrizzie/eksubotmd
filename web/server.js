@@ -297,72 +297,250 @@ app.post('/api/keywords/test', (req, res) => {
 });
 
 // --- 9. GIT SYNC FOR PANEL HOSTING API ---
-app.get('/api/git/status', (req, res) => {
-    const cwd = path.join(__dirname, '..');
-    exec('git rev-parse --short HEAD', { cwd }, (err, commitHash) => {
-        if (err) {
-            return res.json({ 
-                isGit: false, 
-                error: (err.message || '').trim(),
-                branch: 'main',
-                commitHash: '',
-                remoteUrl: ''
-            });
-        }
-        exec('git branch --show-current', { cwd }, (err2, branch) => {
-            exec('git log -1 --pretty=%s (%cr)', { cwd }, (err3, commitMsg) => {
-                exec('git remote get-url origin', { cwd }, (err4, remoteUrl) => {
-                    res.json({
-                        isGit: true,
-                        branch: (branch || 'main').trim(),
-                        commitHash: (commitHash || '').trim(),
-                        commitMessage: (commitMsg || '').trim(),
-                        remoteUrl: (remoteUrl || '').trim()
-                    });
-                });
+function runGit(cmd, cwd) {
+    return new Promise((resolve) => {
+        exec(cmd, { cwd, timeout: 60000 }, (err, stdout, stderr) => {
+            resolve({
+                err,
+                stdout: (stdout || '').trim(),
+                stderr: (stderr || '').trim()
             });
         });
     });
-});
+}
 
-app.post('/api/git/remote', (req, res) => {
-    const cwd = path.join(__dirname, '..');
-    const { url } = req.body;
-    if (!url) return res.status(400).json({ error: 'Remote URL is required' });
+async function ensureGitRepo(cwd, cleanUrl = null) {
+    const gitDir = path.join(cwd, '.git');
+    // Ensure safe directory for Docker / Pterodactyl environments
+    await runGit('git config --global --add safe.directory "*"', cwd);
 
-    const cleanUrl = url.trim();
-    exec(`git remote set-url origin "${cleanUrl}"`, { cwd }, (err) => {
-        if (err) {
-            exec(`git remote add origin "${cleanUrl}"`, { cwd }, (err2, stdout, stderr) => {
-                if (err2) {
-                    return res.status(500).json({ success: false, error: stderr || err2.message });
-                }
-                return res.json({ success: true, message: 'Remote origin set successfully' });
-            });
+    if (!fs.existsSync(gitDir)) {
+        console.log('📦 Initializing Git repository on panel...');
+        await runGit('git init', cwd);
+        await runGit('git config user.email "bot@eksu.local"', cwd);
+        await runGit('git config user.name "EksuBot"', cwd);
+        await runGit('git branch -M main', cwd);
+    }
+
+    if (cleanUrl) {
+        const checkRemote = await runGit('git remote get-url origin', cwd);
+        if (!checkRemote.err && checkRemote.stdout) {
+            await runGit(`git remote set-url origin "${cleanUrl}"`, cwd);
         } else {
-            res.json({ success: true, message: 'Remote origin updated successfully' });
+            const addRes = await runGit(`git remote add origin "${cleanUrl}"`, cwd);
+            if (addRes.err) {
+                await runGit(`git remote set-url origin "${cleanUrl}"`, cwd);
+            }
         }
+    }
+}
+
+app.get('/api/git/status', async (req, res) => {
+    const cwd = path.join(__dirname, '..');
+    const gitDir = path.join(cwd, '.git');
+
+    if (!fs.existsSync(gitDir)) {
+        return res.json({ 
+            isGit: false, 
+            error: 'Git repository not initialized on panel. Enter your GitHub repo URL below and save to link.',
+            branch: 'None',
+            commitHash: 'N/A',
+            remoteUrl: ''
+        });
+    }
+
+    await runGit('git config --global --add safe.directory "*"', cwd);
+
+    const remoteRes = await runGit('git remote get-url origin', cwd);
+    const remoteUrl = remoteRes.stdout || '';
+
+    const branchRes = await runGit('git branch --show-current', cwd);
+    const branch = branchRes.stdout || 'main';
+
+    const commitRes = await runGit('git rev-parse --short HEAD', cwd);
+    if (commitRes.err) {
+        return res.json({
+            isGit: true,
+            branch: branch || 'main',
+            commitHash: 'Uncommitted',
+            commitMessage: 'Repository initialized (no commits yet)',
+            remoteUrl
+        });
+    }
+
+    const logRes = await runGit('git log -1 --pretty=%s (%cr)', cwd);
+    res.json({
+        isGit: true,
+        branch: branch || 'main',
+        commitHash: commitRes.stdout || '',
+        commitMessage: logRes.stdout || '',
+        remoteUrl
     });
 });
 
-app.post('/api/git/pull', (req, res) => {
-    const cwd = path.join(__dirname, '..');
-    exec('git pull', { cwd, timeout: 45000 }, (err, stdout, stderr) => {
-        if (err) {
-            return res.status(500).json({ 
-                success: false, 
-                error: (stderr || err.message).trim(),
-                output: stdout 
-            });
-        }
+app.post('/api/git/remote', async (req, res) => {
+    try {
+        const cwd = path.join(__dirname, '..');
+        const { url } = req.body;
+        if (!url) return res.status(400).json({ error: 'Remote URL is required' });
+
+        const cleanUrl = url.trim();
+        await ensureGitRepo(cwd, cleanUrl);
+
         res.json({ 
             success: true, 
-            output: (stdout || '').trim() || 'Already up to date.' 
+            message: 'Git initialized and remote repository URL saved successfully!' 
         });
-    });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
-// 10. One-Click Cloud Backup & Restore (.zip)
+app.post('/api/git/pull', async (req, res) => {
+    try {
+        const cwd = path.join(__dirname, '..');
+        const gitDir = path.join(cwd, '.git');
+
+        if (!fs.existsSync(gitDir)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Git is not initialized yet. Please enter your GitHub repository URL above and save it first.'
+            });
+        }
+
+        await runGit('git config --global --add safe.directory "*"', cwd);
+
+        // Determine branch name (default to main)
+        let branchRes = await runGit('git branch --show-current', cwd);
+        let branch = branchRes.stdout || 'main';
+
+        // Check if remote exists
+        const remoteRes = await runGit('git remote get-url origin', cwd);
+        if (remoteRes.err || !remoteRes.stdout) {
+            return res.status(400).json({
+                success: false,
+                error: 'No Git remote URL configured. Please set your GitHub URL above and save it first.'
+            });
+        }
+
+        // Fetch latest commits from remote
+        let fetchRes = await runGit(`git fetch origin ${branch}`, cwd);
+        if (fetchRes.err) {
+            // Check if remote uses master instead of main
+            const fetchMaster = await runGit('git fetch origin master', cwd);
+            if (!fetchMaster.err) {
+                branch = 'master';
+                fetchRes = fetchMaster;
+            } else {
+                return res.status(500).json({
+                    success: false,
+                    error: `Git fetch failed: ${fetchRes.stderr || fetchRes.err.message}\n\nTip: If your GitHub repository is private, either make it Public or format the URL as: https://YOUR_TOKEN@github.com/username/repo.git`
+                });
+            }
+        }
+
+        // Try pull with merge
+        let pullRes = await runGit(`git pull origin ${branch} --allow-unrelated-histories --no-rebase -X theirs`, cwd);
+        if (pullRes.err) {
+            // Auto-commit or stage uncommitted local files if preventing pull
+            await runGit('git add -A', cwd);
+            await runGit('git commit -m "Auto-commit local panel changes before sync"', cwd);
+            pullRes = await runGit(`git pull origin ${branch} --allow-unrelated-histories --no-rebase -X theirs`, cwd);
+        }
+
+        if (pullRes.err) {
+            return res.status(500).json({
+                success: false,
+                error: (pullRes.stderr || pullRes.err.message).trim(),
+                output: pullRes.stdout
+            });
+        }
+
+        res.json({
+            success: true,
+            output: (pullRes.stdout || 'Already up to date.').trim()
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// --- 10. REUSABLE SESSION ID MANAGEMENT API ---
+app.get('/api/session/export', (req, res) => {
+    try {
+        const credsPath = path.join(__dirname, '../session/creds.json');
+        if (!fs.existsSync(credsPath)) {
+            return res.json({ 
+                success: true, 
+                hasSession: false, 
+                sessionId: null,
+                message: 'No active session credentials found. Please pair with WhatsApp first.' 
+            });
+        }
+
+        const credsContent = fs.readFileSync(credsPath, 'utf8');
+        const parsed = JSON.parse(credsContent);
+        const registered = !!parsed.registered;
+        const userPhone = parsed.me?.id ? parsed.me.id.split('@')[0].split(':')[0] : null;
+
+        const base64 = Buffer.from(credsContent).toString('base64');
+        const sessionId = `EKSU_MD_${base64}`;
+
+        res.json({
+            success: true,
+            hasSession: true,
+            registered,
+            userPhone,
+            sessionId
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/session/import', async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        if (!sessionId) return res.status(400).json({ error: 'Session ID is required.' });
+
+        let b64 = sessionId.trim();
+        if (b64.startsWith('EKSU_MD_')) b64 = b64.slice('EKSU_MD_'.length);
+        else if (b64.startsWith('EKSU-MD~')) b64 = b64.slice('EKSU-MD~'.length);
+        else if (b64.startsWith('EKSU~')) b64 = b64.slice('EKSU~'.length);
+
+        const decoded = Buffer.from(b64, 'base64').toString('utf8');
+        const parsed = JSON.parse(decoded);
+
+        if (!parsed || typeof parsed !== 'object') {
+            return res.status(400).json({ error: 'Invalid Session ID payload.' });
+        }
+
+        const sessionDir = path.join(__dirname, '../session');
+        if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+        fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(parsed, null, 2), 'utf8');
+
+        // Also save to .env for persistence
+        const currentEnv = parseEnvFile();
+        currentEnv.SESSION_ID = sessionId.trim();
+        writeEnvFile(currentEnv);
+        process.env.SESSION_ID = sessionId.trim();
+
+        console.log('🔐 WhatsApp Session imported successfully from Web Dashboard!');
+
+        // Trigger bot connection restart with the restored session
+        const { getBotController } = require('../core/botController');
+        getBotController().restart().catch(() => {});
+
+        res.json({ 
+            success: true, 
+            message: 'Session ID applied! Bot connection is restarting with the restored session.' 
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: 'Failed to import session ID: ' + e.message });
+    }
+});
+
+// 11. One-Click Cloud Backup & Restore (.zip)
 app.get('/api/backup/download', (req, res) => {
     try {
         const zip = new AdmZip();

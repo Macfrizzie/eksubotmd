@@ -15,6 +15,7 @@ yarn-error.log*
 
 # Database & Runtime Data
 database.json
+analytics.json
 temp/
 *.tmp
 *.log
