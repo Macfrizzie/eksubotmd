@@ -7,6 +7,7 @@ const CONV_FILE = path.join(__dirname, '../conversations.json');
 const ANALYTICS_FILE = path.join(__dirname, '../analytics.json');
 const HANDOFF_FILE = path.join(__dirname, '../handoffs.json');
 const DB_FILE = path.join(__dirname, '../database.json');
+const RULES_FILE = path.join(__dirname, '../keyword_rules.json');
 
 class FirebaseSync {
     constructor() {
@@ -118,7 +119,14 @@ class FirebaseSync {
             backedUp.push('variables');
         }
 
-        // 6. Metadata Record
+        // 6. Keyword Auto-Reply Rules
+        if (fs.existsSync(RULES_FILE)) {
+            const rulesData = JSON.parse(fs.readFileSync(RULES_FILE, 'utf8'));
+            await this.saveDoc('bot_config', 'keyword_rules', rulesData);
+            backedUp.push('keyword_rules');
+        }
+
+        // 7. Metadata Record
         await this.saveDoc('bot_config', 'meta', {
             lastBackup: new Date().toISOString(),
             files: backedUp,
@@ -172,6 +180,13 @@ class FirebaseSync {
             restored.push('variables');
         }
 
+        // 6. Restore Keyword Rules
+        const rulesData = await this.getDoc('bot_config', 'keyword_rules');
+        if (rulesData) {
+            fs.writeFileSync(RULES_FILE, JSON.stringify(rulesData, null, 2), 'utf8');
+            restored.push('keyword_rules');
+        }
+
         // Reload live state in memory
         try {
             const aiEngine = require('./aiEngine');
@@ -180,6 +195,13 @@ class FirebaseSync {
             aiEngine.loadHandoffs();
         } catch (e) {
             console.error('Error reloading AI engine in memory:', e);
+        }
+
+        try {
+            const keywordEngine = require('./keywordEngine');
+            keywordEngine.loadRules();
+        } catch (e) {
+            console.error('Error reloading keyword rules in memory:', e);
         }
 
         try {

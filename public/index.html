@@ -63,10 +63,11 @@
                     <span id="headerAiToggleText">AI Active</span>
                 </button>
 
-                <div id="pairingAlert" class="hidden items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono animate-pulse">
+                <button id="pairingAlert" onclick="copyPairingCode(document.getElementById('pairingCodeDisplay').textContent)" title="Click to copy pairing code" class="hidden items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-mono transition cursor-pointer">
                     <i data-lucide="key" class="w-3.5 h-3.5"></i>
                     Pairing: <span id="pairingCodeDisplay" class="font-bold text-white"></span>
-                </div>
+                    <span id="headerCopyNotice" class="text-[10px] text-amber-400 bg-amber-500/20 px-1.5 py-0.5 rounded font-sans font-semibold ml-1">Copy</span>
+                </button>
 
                 <div id="statusBadge" class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-slate-500 animate-ping"></span>
@@ -87,15 +88,19 @@
             <button onclick="switchTab('console')" id="tab-btn-console" class="tab-btn active flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition bg-slate-800 text-emerald-400 border border-slate-700">
                 <i data-lucide="terminal" class="w-4 h-4"></i> Live Console
             </button>
+            <button onclick="switchTab('keywords')" id="tab-btn-keywords" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="tag" class="w-4 h-4"></i> Keyword Rules
+                <span id="keywordBadgeCount" class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] rounded-full border border-emerald-500/30">0</span>
+            </button>
+            <button onclick="switchTab('ai')" id="tab-btn-ai" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="sparkles" class="w-4 h-4"></i> AI Knowledge Base
+            </button>
             <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics
             </button>
             <button onclick="switchTab('handoff')" id="tab-btn-handoff" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="user-check" class="w-4 h-4"></i> Human Handoff
                 <span id="handoffBadgeCount" class="hidden px-1.5 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] rounded-full border border-rose-500/30">0</span>
-            </button>
-            <button onclick="switchTab('ai')" id="tab-btn-ai" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
-                <i data-lucide="sparkles" class="w-4 h-4"></i> AI Knowledge Base
             </button>
             <button onclick="switchTab('env')" id="tab-btn-env" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="sliders" class="w-4 h-4"></i> Environment & Config
@@ -146,6 +151,57 @@
                 </div>
             </div>
 
+            <!-- On-Demand Pairing Station with 1-Click Copy -->
+            <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/20 border border-slate-800 hover:border-amber-500/30 rounded-xl p-4 sm:p-5 shadow-lg transition">
+                <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+                                <i data-lucide="key" class="w-4 h-4"></i>
+                            </div>
+                            <h3 class="font-bold text-sm sm:text-base text-slate-100 flex items-center gap-2">
+                                WhatsApp Pairing Code Station
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Anti-Ban Safe</span>
+                            </h3>
+                        </div>
+                        <p class="text-xs text-slate-400 max-w-xl">
+                            Pairing codes are generated strictly on-demand to protect your number from automatic request spam and temporary WhatsApp bans.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
+                        <div class="relative flex-1 sm:w-64">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-xs font-mono">+</span>
+                            <input type="text" id="dashboardPairInput" placeholder="2348012345678" class="w-full bg-slate-950 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs sm:text-sm text-slate-100 font-mono focus:border-amber-500 focus:outline-none">
+                        </div>
+                        <button onclick="requestPairingFromDashboard()" id="generatePairBtn" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow shadow-amber-600/20 flex-shrink-0">
+                            <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                            <span>Get Pairing Code</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Generated Pairing Code Box -->
+                <div id="livePairingResultBox" class="hidden mt-4 pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-amber-500/10 p-3 sm:p-4 rounded-xl border border-amber-500/30">
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="smartphone" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-[11px] text-amber-300 font-medium">WhatsApp 8-Digit Pairing Code:</div>
+                            <div id="largePairingCodeDisplay" class="text-xl sm:text-2xl font-mono font-black tracking-widest text-white select-all">---- ----</div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <button onclick="copyPairingCode(document.getElementById('largePairingCodeDisplay').textContent)" id="copyPairCodeBtn" class="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition shadow">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                            <span id="copyPairBtnText">Copy Code</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Terminal Box -->
             <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col h-[400px] sm:h-[520px]">
                 <div class="bg-slate-800/60 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
@@ -167,6 +223,57 @@
                 </div>
                 <div id="terminalBody" class="p-4 font-mono text-xs overflow-y-auto flex-1 space-y-1.5 leading-relaxed bg-black/40">
                     <div class="text-slate-500 italic">Waiting for bot activity events...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: KEYWORD AUTO-REPLY RULES -->
+        <section id="tab-keywords" class="tab-content hidden space-y-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900 p-5 rounded-xl border border-slate-800">
+                <div>
+                    <h2 class="text-lg font-bold flex items-center gap-2 text-white">
+                        <i data-lucide="tag" class="w-5 h-5 text-emerald-400"></i> Preset Keyword Auto-Reply Rules
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Respond instantly to specific user messages before Gemini AI is queried. 0 tokens, 0 delay, 100% deterministic.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <button onclick="openAddKeywordModal()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition shadow shadow-emerald-600/20">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Keyword Rule
+                    </button>
+                </div>
+            </div>
+
+            <!-- Match Tester (Sandbox) -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold text-xs sm:text-sm text-slate-200 flex items-center gap-2">
+                        <i data-lucide="flask-conical" class="w-4 h-4 text-purple-400"></i>
+                        Live Keyword Tester (Test Match in Real-Time)
+                    </h3>
+                    <span class="text-[11px] text-slate-500 font-mono">Matches exact, starts/ends with, contains, similar & regex</span>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="keywordTestInput" onkeydown="if(event.key==='Enter') testKeywordMatch()" placeholder="Type a message to test which rule matches (e.g. 'hello', 'what are the school fees')..." class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-purple-500 font-mono">
+                    <button onclick="testKeywordMatch()" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+                        <i data-lucide="play" class="w-3.5 h-3.5"></i> Test Rule
+                    </button>
+                </div>
+                <div id="keywordTestResult" class="hidden p-3 rounded-lg text-xs font-mono"></div>
+            </div>
+
+            <!-- Rules Container -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow">
+                <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                    <div class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                        <span>Active Keyword Rules</span>
+                        <span id="keywordCount" class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">0</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400">Rules are checked before AI auto-reply</div>
+                </div>
+                <div id="keywordRulesContainer" class="divide-y divide-slate-800/80">
+                    <div class="p-8 text-center text-slate-500">Loading rules...</div>
                 </div>
             </div>
         </section>
@@ -199,14 +306,25 @@
                         </h3>
                         <div>
                             <label class="text-xs text-slate-400">AI Provider</label>
-                            <select id="aiProviderSelect" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                            <select id="aiProviderSelect" onchange="onAiProviderChange()" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
                                 <option value="gemini">Google Gemini (Recommended)</option>
                                 <option value="openai">OpenAI (ChatGPT)</option>
                             </select>
                         </div>
                         <div>
-                            <label class="text-xs text-slate-400">Model Name</label>
-                            <input type="text" id="aiModelInput" placeholder="gemini-1.5-flash" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs text-slate-400">Model Name</label>
+                                <span class="text-[10px] text-slate-500">Presets or type any custom ID</span>
+                            </div>
+                            <div class="space-y-1.5 mt-1">
+                                <select id="aiModelPresetSelect" onchange="onAiModelPresetChange()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                                    <option value="gemini-1.5-flash">gemini-1.5-flash (Fast, High Free Quota - Recommended)</option>
+                                    <option value="gemini-2.0-flash">gemini-2.0-flash (Next-Gen Fast & Multimodal)</option>
+                                    <option value="gemini-1.5-pro">gemini-1.5-pro (Deep Reasoning & Large Documents)</option>
+                                    <option value="custom">Custom Model (Type below)...</option>
+                                </select>
+                                <input type="text" id="aiModelInput" placeholder="gemini-1.5-flash" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-100 font-mono focus:border-emerald-500 focus:outline-none">
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
@@ -339,6 +457,54 @@
                         </button>
                     </div>
                 </form>
+
+                <!-- Git Panel Sync Section -->
+                <div class="mt-6 pt-6 border-t border-slate-800 space-y-4">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                            <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+                                <i data-lucide="git-branch" class="w-4 h-4 text-emerald-400"></i> Git Panel Sync & Auto-Update
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-0.5">
+                                Keep your hosted Pterodactyl / VPS server synced with your GitHub repository with 1-click.
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="loadGitStatus()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700 flex items-center gap-1 transition">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Git
+                            </button>
+                            <button type="button" onclick="runGitPull()" id="gitPullBtn" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow shadow-emerald-600/20">
+                                <i data-lucide="git-pull-request" class="w-3.5 h-3.5"></i> Sync with Git (Pull)
+                            </button>
+                        </div>
+                    <!-- Remote Repository URL -->
+                    <div class="bg-slate-950 p-3.5 rounded-lg border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <div class="flex-1">
+                            <label class="text-[11px] text-slate-400 block mb-1">GitHub Remote URL (Public repo recommended for 1-click passwordless sync)</label>
+                            <input type="text" id="gitRemoteUrlInput" placeholder="https://github.com/USERNAME/eksubotmd.git" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:border-emerald-500 focus:outline-none">
+                        </div>
+                        <button type="button" onclick="saveGitRemoteUrl()" class="sm:self-end px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition flex items-center justify-center gap-1.5 flex-shrink-0">
+                            <i data-lucide="link" class="w-3.5 h-3.5"></i> Save Git Link
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                        <div class="p-3 bg-slate-950 rounded-lg border border-slate-800">
+                            <div class="text-[10px] text-slate-500 uppercase">Current Branch</div>
+                            <div id="gitBranchDisplay" class="font-bold text-emerald-400 mt-1">Checking...</div>
+                        </div>
+                        <div class="p-3 bg-slate-950 rounded-lg border border-slate-800">
+                            <div class="text-[10px] text-slate-500 uppercase">Commit Hash</div>
+                            <div id="gitCommitDisplay" class="font-bold text-slate-200 mt-1">Checking...</div>
+                        </div>
+                        <div class="p-3 bg-slate-950 rounded-lg border border-slate-800">
+                            <div class="text-[10px] text-slate-500 uppercase">Last Commit & Time</div>
+                            <div id="gitCommitTimeDisplay" class="text-slate-300 truncate mt-1">Checking...</div>
+                        </div>
+                    </div>
+
+                    <div id="gitPullOutputBox" class="hidden p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-40 overflow-y-auto"></div>
+                </div>
             </div>
         </section>
 
@@ -673,6 +839,54 @@
         </div>
     </div>
 
+    <!-- Modal for Adding/Editing Keyword Rule -->
+    <div id="keywordModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 id="keywordModalTitle" class="text-base font-bold text-white">Add Keyword Auto-Reply Rule</h3>
+                <button onclick="closeKeywordModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <input type="hidden" id="modalKeywordId">
+            
+            <div>
+                <label class="text-xs text-slate-400">Trigger Keyword / Phrase</label>
+                <input type="text" id="modalKeywordInput" placeholder="e.g. school fees, portal, timetable, hello" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono focus:border-emerald-500">
+            </div>
+
+            <div>
+                <label class="text-xs text-slate-400">Match Type</label>
+                <select id="modalMatchTypeSelect" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 focus:border-emerald-500">
+                    <option value="contains">Contains — Matches anywhere in user query (Recommended)</option>
+                    <option value="exact">Exact — Entire message must match keyword exactly</option>
+                    <option value="startsWith">Starts With — User message begins with keyword</option>
+                    <option value="endsWith">Ends With — User message ends with keyword</option>
+                    <option value="similar">Similar (Fuzzy) — Typo-tolerant Levenshtein similarity</option>
+                    <option value="regex">Regex — Advanced regular expression pattern</option>
+                </select>
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between">
+                    <label class="text-xs text-slate-400">Preset Reply Message</label>
+                    <span class="text-[11px] text-slate-500 font-mono">Use @user and @number as placeholders</span>
+                </div>
+                <textarea id="modalKeywordResponse" rows="5" placeholder="Type response... e.g. Hello @user! The student portal URL is https://portal.eksu.edu.ng" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 leading-relaxed focus:border-emerald-500"></textarea>
+            </div>
+
+            <div class="flex items-center gap-2 pt-1">
+                <input type="checkbox" id="modalKeywordEnabled" checked class="rounded bg-slate-800 border-slate-700 text-emerald-500">
+                <label for="modalKeywordEnabled" class="text-xs text-slate-300">Rule Enabled</label>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button onclick="closeKeywordModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Cancel</button>
+                <button onclick="submitKeywordRule()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                    <i data-lucide="save" class="w-3.5 h-3.5"></i> Save Rule
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Client Script -->
     <script>
         lucide.createIcons();
@@ -687,12 +901,16 @@
 
             document.getElementById(`tab-${tabId}`).classList.remove('hidden');
             const activeBtn = document.getElementById(`tab-btn-${tabId}`);
-            activeBtn.classList.remove('text-slate-400');
-            activeBtn.classList.add('bg-slate-800', 'text-emerald-400', 'border', 'border-slate-700');
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-400');
+                activeBtn.classList.add('bg-slate-800', 'text-emerald-400', 'border', 'border-slate-700');
+            }
             lucide.createIcons();
 
             if (tabId === 'analytics') loadAnalytics();
             if (tabId === 'handoff') loadHandoffQueue();
+            if (tabId === 'keywords') loadKeywords();
+            if (tabId === 'env') loadGitStatus();
         }
 
         // WEBSOCKET LOGGING & STATUS
@@ -749,6 +967,11 @@
             if (status.pairingCode) {
                 pairing.classList.remove('hidden');
                 document.getElementById('pairingCodeDisplay').textContent = status.pairingCode;
+                const liveBox = document.getElementById('livePairingResultBox');
+                if (liveBox) {
+                    liveBox.classList.remove('hidden');
+                    document.getElementById('largePairingCodeDisplay').textContent = status.pairingCode;
+                }
             }
 
             if (status.uptime) {
@@ -764,6 +987,68 @@
             if (status.aiEnabled !== undefined) {
                 updateAiToggleUI(status.aiEnabled);
                 if (currentKB) currentKB.enabled = status.aiEnabled;
+            }
+        }
+
+        async function copyPairingCode(code) {
+            const cleanCode = (code || '').trim();
+            if (!cleanCode || cleanCode.includes('----')) return;
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(cleanCode);
+                } else {
+                    const temp = document.createElement('textarea');
+                    temp.value = cleanCode;
+                    document.body.appendChild(temp);
+                    temp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(temp);
+                }
+                const btnText = document.getElementById('copyPairBtnText');
+                const headerNotice = document.getElementById('headerCopyNotice');
+                if (btnText) btnText.textContent = '✅ Copied!';
+                if (headerNotice) headerNotice.textContent = 'Copied!';
+                setTimeout(() => {
+                    if (btnText) btnText.textContent = 'Copy Code';
+                    if (headerNotice) headerNotice.textContent = 'Copy';
+                }, 2500);
+            } catch (err) {
+                alert('Pairing Code: ' + cleanCode);
+            }
+        }
+
+        async function requestPairingFromDashboard() {
+            const input = document.getElementById('dashboardPairInput');
+            const num = input ? input.value.trim().replace(/[^0-9]/g, '') : '';
+            if (!num) return alert('Please enter your WhatsApp phone number with country code (e.g. 2348012345678).');
+
+            const btn = document.getElementById('generatePairBtn');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Generating...`;
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/bot/pair', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ number: num })
+                });
+                const data = await res.json();
+                if (data.success && data.code) {
+                    const box = document.getElementById('livePairingResultBox');
+                    const codeEl = document.getElementById('largePairingCodeDisplay');
+                    codeEl.textContent = data.code;
+                    box.classList.remove('hidden');
+                    lucide.createIcons();
+                } else {
+                    alert('Pairing error: ' + (data.error || 'Check server status'));
+                }
+            } catch (err) {
+                alert('Error requesting pairing code: ' + err.message);
+            } finally {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+                lucide.createIcons();
             }
         }
 
@@ -802,6 +1087,8 @@
         window.addEventListener('DOMContentLoaded', () => {
             loadEnv();
             loadKnowledgeBase();
+            loadKeywords();
+            loadGitStatus();
             loadFirebaseStatus();
             loadAnalytics();
             loadHandoffQueue();
@@ -891,14 +1178,63 @@
             currentKB = await res.json();
 
             updateAiToggleUI(currentKB.enabled);
-            document.getElementById('aiProviderSelect').value = currentKB.provider || 'gemini';
-            document.getElementById('aiModelInput').value = currentKB.model || 'gemini-3.8-flash';
+            const provider = currentKB.provider || 'gemini';
+            document.getElementById('aiProviderSelect').value = provider;
+            
+            const model = currentKB.model && !currentKB.model.includes('3.8') ? currentKB.model : (provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini');
+            document.getElementById('aiModelInput').value = model;
+
+            const presetSelect = document.getElementById('aiModelPresetSelect');
+            if (presetSelect) {
+                if ([...presetSelect.options].some(o => o.value === model)) {
+                    presetSelect.value = model;
+                } else {
+                    presetSelect.value = 'custom';
+                }
+            }
+
             document.getElementById('aiTempInput').value = currentKB.temperature ?? 0.7;
             document.getElementById('aiCooldownInput').value = currentKB.cooldownMinutes ?? 1;
             document.getElementById('aiDmOnlyCheck').checked = currentKB.dmOnly !== false;
             document.getElementById('aiSystemPrompt').value = currentKB.systemPrompt || '';
 
             renderKBEntries(currentKB.entries || []);
+        }
+
+        function onAiProviderChange() {
+            const provider = document.getElementById('aiProviderSelect').value;
+            const presetSelect = document.getElementById('aiModelPresetSelect');
+            const modelInput = document.getElementById('aiModelInput');
+
+            if (provider === 'gemini') {
+                presetSelect.innerHTML = `
+                    <option value="gemini-1.5-flash">gemini-1.5-flash (Fast, High Free Quota - Recommended)</option>
+                    <option value="gemini-2.0-flash">gemini-2.0-flash (Next-Gen Fast & Multimodal)</option>
+                    <option value="gemini-1.5-pro">gemini-1.5-pro (Deep Reasoning & Large Documents)</option>
+                    <option value="custom">Custom Model (Type below)...</option>
+                `;
+                modelInput.value = 'gemini-1.5-flash';
+                presetSelect.value = 'gemini-1.5-flash';
+            } else {
+                presetSelect.innerHTML = `
+                    <option value="gpt-4o-mini">gpt-4o-mini (Fast & Cost Effective - Recommended)</option>
+                    <option value="gpt-4o">gpt-4o (Most Intelligent Flagship)</option>
+                    <option value="gpt-3.5-turbo">gpt-3.5-turbo (Legacy)</option>
+                    <option value="custom">Custom Model (Type below)...</option>
+                `;
+                modelInput.value = 'gpt-4o-mini';
+                presetSelect.value = 'gpt-4o-mini';
+            }
+        }
+
+        function onAiModelPresetChange() {
+            const preset = document.getElementById('aiModelPresetSelect').value;
+            const modelInput = document.getElementById('aiModelInput');
+            if (preset !== 'custom') {
+                modelInput.value = preset;
+            } else {
+                modelInput.focus();
+            }
         }
 
         function renderKBEntries(entries) {
@@ -1316,6 +1652,7 @@
                         input.value = '';
                         loadEnv();
                         loadKnowledgeBase();
+                        loadKeywords();
                         loadAnalytics();
                         loadHandoffQueue();
                     } else {
@@ -1328,6 +1665,264 @@
                 }
             };
             reader.readAsDataURL(file);
+        }
+
+        // --- KEYWORD RULES MANAGER ---
+        let currentKeywords = [];
+
+        async function loadKeywords() {
+            try {
+                const res = await fetch('/api/keywords');
+                currentKeywords = await res.json();
+                renderKeywords(currentKeywords);
+                const badge = document.getElementById('keywordBadgeCount');
+                const countEl = document.getElementById('keywordCount');
+                if (badge) badge.textContent = currentKeywords.length;
+                if (countEl) countEl.textContent = currentKeywords.length;
+            } catch (err) {
+                console.error('Error loading keywords:', err);
+            }
+        }
+
+        function getMatchTypeBadge(type) {
+            const t = (type || 'contains').toLowerCase();
+            const badges = {
+                'exact': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                'contains': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+                'startswith': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+                'endswith': 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+                'similar': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+                'regex': 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+            };
+            const cls = badges[t] || badges['contains'];
+            return `<span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${cls}">${escapeHtml(type)}</span>`;
+        }
+
+        function renderKeywords(rules) {
+            const container = document.getElementById('keywordRulesContainer');
+            container.innerHTML = '';
+
+            if (!rules || rules.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-slate-500">No keyword rules yet. Click "Add Keyword Rule" above to create deterministic preset replies.</div>`;
+                return;
+            }
+
+            rules.forEach(rule => {
+                const div = document.createElement('div');
+                div.className = 'p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:bg-slate-800/30 transition';
+                div.innerHTML = `
+                    <div class="space-y-1.5 flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-mono font-bold text-sm text-white px-2 py-0.5 rounded bg-slate-800 border border-slate-700">${escapeHtml(rule.keyword)}</span>
+                            ${getMatchTypeBadge(rule.matchType)}
+                            <span class="text-[11px] ${rule.enabled ? 'text-emerald-400' : 'text-slate-500 font-mono'}">● ${rule.enabled ? 'Active' : 'Disabled'}</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed break-words bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 font-sans">${escapeHtml(rule.response)}</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0 w-full md:w-auto justify-end">
+                        <button onclick="toggleKeywordRule('${rule.id}', ${!rule.enabled})" title="${rule.enabled ? 'Disable' : 'Enable'} rule" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${rule.enabled ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}">
+                            ${rule.enabled ? 'Enabled' : 'Disabled'}
+                        </button>
+                        <button onclick="editKeywordRule('${rule.id}')" class="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition" title="Edit Rule">
+                            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button onclick="deleteKeywordRule('${rule.id}')" class="p-2 text-rose-400 hover:text-rose-300 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition" title="Delete Rule">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            lucide.createIcons();
+        }
+
+        function openAddKeywordModal() {
+            document.getElementById('modalKeywordId').value = '';
+            document.getElementById('modalKeywordInput').value = '';
+            document.getElementById('modalMatchTypeSelect').value = 'contains';
+            document.getElementById('modalKeywordResponse').value = '';
+            document.getElementById('modalKeywordEnabled').checked = true;
+            document.getElementById('keywordModalTitle').textContent = 'Add Keyword Auto-Reply Rule';
+            document.getElementById('keywordModal').classList.remove('hidden');
+        }
+
+        function editKeywordRule(id) {
+            const rule = currentKeywords.find(r => r.id === id);
+            if (!rule) return;
+            document.getElementById('modalKeywordId').value = rule.id;
+            document.getElementById('modalKeywordInput').value = rule.keyword;
+            document.getElementById('modalMatchTypeSelect').value = rule.matchType || 'contains';
+            document.getElementById('modalKeywordResponse').value = rule.response;
+            document.getElementById('modalKeywordEnabled').checked = rule.enabled !== false;
+            document.getElementById('keywordModalTitle').textContent = 'Edit Keyword Rule';
+            document.getElementById('keywordModal').classList.remove('hidden');
+        }
+
+        function closeKeywordModal() {
+            document.getElementById('keywordModal').classList.add('hidden');
+        }
+
+        async function submitKeywordRule() {
+            const id = document.getElementById('modalKeywordId').value;
+            const keyword = document.getElementById('modalKeywordInput').value.trim();
+            const matchType = document.getElementById('modalMatchTypeSelect').value;
+            const response = document.getElementById('modalKeywordResponse').value.trim();
+            const enabled = document.getElementById('modalKeywordEnabled').checked;
+
+            if (!keyword || !response) return alert('Keyword and preset response message are required.');
+
+            const payload = { keyword, matchType, response, enabled };
+
+            if (id) {
+                await fetch(`/api/keywords/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                await fetch('/api/keywords', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
+
+            closeKeywordModal();
+            loadKeywords();
+        }
+
+        async function toggleKeywordRule(id, newState) {
+            await fetch(`/api/keywords/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: newState })
+            });
+            loadKeywords();
+        }
+
+        async function deleteKeywordRule(id) {
+            if (!confirm('Are you sure you want to delete this keyword rule?')) return;
+            await fetch(`/api/keywords/${id}`, { method: 'DELETE' });
+            loadKeywords();
+        }
+
+        async function testKeywordMatch() {
+            const input = document.getElementById('keywordTestInput');
+            const query = input.value.trim();
+            if (!query) return;
+
+            const resBox = document.getElementById('keywordTestResult');
+            resBox.classList.remove('hidden', 'bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-300', 'bg-amber-500/10', 'border-amber-500/30', 'text-amber-300');
+
+            try {
+                const res = await fetch('/api/keywords/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const data = await res.json();
+
+                if (data.matched && data.match) {
+                    resBox.className = 'p-3 rounded-lg text-xs font-mono bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 space-y-1';
+                    resBox.innerHTML = `
+                        <div class="font-bold">🎯 MATCH FOUND! (Rule: "${escapeHtml(data.match.keyword)}" via ${data.match.matchType.toUpperCase()})</div>
+                        <div class="text-slate-200 font-sans mt-1">Preset Reply: "${escapeHtml(data.match.response)}"</div>
+                        <div class="text-[11px] text-emerald-400 mt-1">⚡ Instant response triggered. Gemini AI will NOT be called. (0 tokens used)</div>
+                    `;
+                } else {
+                    resBox.className = 'p-3 rounded-lg text-xs font-mono bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-1';
+                    resBox.innerHTML = `
+                        <div class="font-bold">ℹ️ No keyword rule matched for: "${escapeHtml(query)}"</div>
+                        <div class="text-slate-300 font-sans mt-1">This message falls back to Google Gemini AI auto-reply with Knowledge Base context.</div>
+                    `;
+                }
+            } catch (err) {
+                resBox.className = 'p-3 rounded-lg text-xs font-mono bg-rose-500/10 border border-rose-500/30 text-rose-300';
+                resBox.textContent = 'Test error: ' + err.message;
+            }
+        }
+
+        // --- GIT SYNC & AUTO-UPDATE ---
+        async function loadGitStatus() {
+            try {
+                const res = await fetch('/api/git/status');
+                const data = await res.json();
+                const branchEl = document.getElementById('gitBranchDisplay');
+                const commitEl = document.getElementById('gitCommitDisplay');
+                const timeEl = document.getElementById('gitCommitTimeDisplay');
+                const remoteInput = document.getElementById('gitRemoteUrlInput');
+
+                if (remoteInput && data.remoteUrl) {
+                    remoteInput.value = data.remoteUrl;
+                }
+
+                if (data.isGit) {
+                    if (branchEl) branchEl.textContent = data.branch || 'main';
+                    if (commitEl) commitEl.textContent = data.commitHash || 'HEAD';
+                    if (timeEl) timeEl.textContent = `${data.commitMessage || ''} (${data.commitTime || ''})`;
+                } else {
+                    if (branchEl) branchEl.textContent = 'Not a Git repo';
+                    if (commitEl) commitEl.textContent = 'N/A';
+                    if (timeEl) timeEl.textContent = data.error || 'Git not initialized';
+                }
+            } catch (err) {
+                console.error('Git status error:', err);
+            }
+        }
+
+        async function saveGitRemoteUrl() {
+            const input = document.getElementById('gitRemoteUrlInput');
+            const url = input ? input.value.trim() : '';
+            if (!url) return alert('Please enter a GitHub repository URL.');
+
+            try {
+                const res = await fetch('/api/git/remote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Git Remote URL updated successfully!');
+                    loadGitStatus();
+                } else {
+                    alert('Error saving remote: ' + (data.error || 'Check server logs'));
+                }
+            } catch (err) {
+                alert('Network error saving Git remote: ' + err.message);
+            }
+        }
+
+        async function runGitPull() {
+            const btn = document.getElementById('gitPullBtn');
+            const outBox = document.getElementById('gitPullOutputBox');
+            const origHtml = btn.innerHTML;
+
+            btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Pulling...`;
+            btn.disabled = true;
+            outBox.classList.remove('hidden');
+            outBox.textContent = 'Running `git pull` from remote repository...';
+
+            try {
+                const res = await fetch('/api/git/pull', { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    outBox.textContent = `✅ Git Pull Successful:\n\n${data.output}`;
+                    loadGitStatus();
+                    if (confirm('Code successfully updated from Git! Would you like to restart the bot connection now to apply changes?')) {
+                        restartBotServer();
+                    }
+                } else {
+                    outBox.textContent = `❌ Git Pull Failed:\n\n${data.error || 'Unknown error'}\n${data.output || ''}`;
+                }
+            } catch (err) {
+                outBox.textContent = `❌ Network Error: ${err.message}`;
+            } finally {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
         }
     </script>
 </body>

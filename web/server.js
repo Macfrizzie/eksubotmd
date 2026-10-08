@@ -7,6 +7,8 @@ const logger = require('../core/logger');
 const aiEngine = require('../core/aiEngine');
 const firebaseSync = require('../core/firebase');
 const analytics = require('../core/analytics');
+const keywordEngine = require('../core/keywordEngine');
+const { exec } = require('child_process');
 const AdmZip = require('adm-zip');
 
 const app = express();
@@ -122,13 +124,6 @@ app.post('/api/env', (req, res) => {
         }
 
         console.log('⚙️ Environment variables updated via Web Dashboard');
-
-        // If PAIR_NUMBER was updated, automatically request pairing code
-        if (newSettings.PAIR_NUMBER) {
-            const { getBotController } = require('../core/botController');
-            getBotController().requestPairing(newSettings.PAIR_NUMBER).catch(() => {});
-        }
-
         res.json({ success: true, message: 'Settings saved successfully' });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -253,7 +248,121 @@ app.post('/api/handoff/resume/:id', (req, res) => {
     res.json({ success });
 });
 
-// 8. One-Click Cloud Backup & Restore (.zip)
+// --- 8. KEYWORD AUTO-REPLY RULES API ---
+app.get('/api/keywords', (req, res) => {
+    res.json(keywordEngine.getRules());
+});
+
+app.post('/api/keywords', (req, res) => {
+    try {
+        const { keyword, matchType, response, enabled } = req.body;
+        if (!keyword || !response) {
+            return res.status(400).json({ error: 'Keyword and response are required.' });
+        }
+        const rule = keywordEngine.addRule(keyword, matchType, response, enabled);
+        res.json({ success: true, rule });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.put('/api/keywords/:id', (req, res) => {
+    try {
+        const rule = keywordEngine.updateRule(req.params.id, req.body);
+        if (!rule) return res.status(404).json({ error: 'Rule not found' });
+        res.json({ success: true, rule });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete('/api/keywords/:id', (req, res) => {
+    try {
+        const deleted = keywordEngine.deleteRule(req.params.id);
+        res.json({ success: deleted });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/keywords/test', (req, res) => {
+    try {
+        const { query } = req.body;
+        if (!query) return res.status(400).json({ error: 'Query is required.' });
+        const match = keywordEngine.findMatch(query);
+        res.json({ matched: !!match, match });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- 9. GIT SYNC FOR PANEL HOSTING API ---
+app.get('/api/git/status', (req, res) => {
+    const cwd = path.join(__dirname, '..');
+    exec('git rev-parse --short HEAD', { cwd }, (err, commitHash) => {
+        if (err) {
+            return res.json({ 
+                isGit: false, 
+                error: (err.message || '').trim(),
+                branch: 'main',
+                commitHash: '',
+                remoteUrl: ''
+            });
+        }
+        exec('git branch --show-current', { cwd }, (err2, branch) => {
+            exec('git log -1 --pretty=%s (%cr)', { cwd }, (err3, commitMsg) => {
+                exec('git remote get-url origin', { cwd }, (err4, remoteUrl) => {
+                    res.json({
+                        isGit: true,
+                        branch: (branch || 'main').trim(),
+                        commitHash: (commitHash || '').trim(),
+                        commitMessage: (commitMsg || '').trim(),
+                        remoteUrl: (remoteUrl || '').trim()
+                    });
+                });
+            });
+        });
+    });
+});
+
+app.post('/api/git/remote', (req, res) => {
+    const cwd = path.join(__dirname, '..');
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'Remote URL is required' });
+
+    const cleanUrl = url.trim();
+    exec(`git remote set-url origin "${cleanUrl}"`, { cwd }, (err) => {
+        if (err) {
+            exec(`git remote add origin "${cleanUrl}"`, { cwd }, (err2, stdout, stderr) => {
+                if (err2) {
+                    return res.status(500).json({ success: false, error: stderr || err2.message });
+                }
+                return res.json({ success: true, message: 'Remote origin set successfully' });
+            });
+        } else {
+            res.json({ success: true, message: 'Remote origin updated successfully' });
+        }
+    });
+});
+
+app.post('/api/git/pull', (req, res) => {
+    const cwd = path.join(__dirname, '..');
+    exec('git pull', { cwd, timeout: 45000 }, (err, stdout, stderr) => {
+        if (err) {
+            return res.status(500).json({ 
+                success: false, 
+                error: (stderr || err.message).trim(),
+                output: stdout 
+            });
+        }
+        res.json({ 
+            success: true, 
+            output: (stdout || '').trim() || 'Already up to date.' 
+        });
+    });
+});
+
+// 10. One-Click Cloud Backup & Restore (.zip)
 app.get('/api/backup/download', (req, res) => {
     try {
         const zip = new AdmZip();
@@ -261,6 +370,7 @@ app.get('/api/backup/download', (req, res) => {
 
         const filesToBackup = [
             'knowledge_base.json',
+            'keyword_rules.json',
             'conversations.json',
             'analytics.json',
             'database.json',
@@ -304,6 +414,7 @@ app.post('/api/backup/restore', (req, res) => {
         aiEngine.loadKB();
         aiEngine.loadConversations();
         aiEngine.loadHandoffs();
+        keywordEngine.loadRules();
         analytics.load();
 
         console.log('📦 Complete Backup successfully restored to bot.');

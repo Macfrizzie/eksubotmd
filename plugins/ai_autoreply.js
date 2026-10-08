@@ -1,6 +1,7 @@
 const { Module } = require('../core/handler');
 const aiEngine = require('../core/aiEngine');
 const analytics = require('../core/analytics');
+const keywordEngine = require('../core/keywordEngine');
 const { jidNormalizedUser } = require('@whiskeysockets/baileys');
 
 function getGlobalOwnerJid(client) {
@@ -9,6 +10,10 @@ function getGlobalOwnerJid(client) {
     if (client.user?.id) return jidNormalizedUser(client.user.id);
     return null;
 }
+
+// In-flight request tracker and per-sender debounce to protect API quotas
+const inFlightSenders = new Set();
+const lastSenderReplyTime = new Map();
 
 // 1. ACTIVE TEXT LISTENER
 Module({
@@ -38,46 +43,78 @@ Module({
             return; // Let the human owner chat without AI interference
         }
 
-        // Typing presence simulation
-        try {
-            if (m.client?.sendPresenceUpdate) {
-                await m.client.sendPresenceUpdate('composing', m.jid);
-            }
-        } catch (e) {}
-
         const senderName = (m.pushName && m.pushName !== 'User') ? m.pushName : (m.senderName || 'Friend');
-        const result = await aiEngine.generateReply(clean, m.sender, senderName);
 
-        if (result && result.reply) {
-            await new Promise(r => setTimeout(r, 1200 + Math.random() * 1500));
-            await m.reply(result.reply);
+        // 1. Preset Keyword Rule Engine (Zero latency, 0 token cost, instant reply)
+        const kwMatch = keywordEngine.findMatch(clean);
+        if (kwMatch) {
+            let replyText = kwMatch.response
+                .replace(/@user/gi, senderName)
+                .replace(/@number/gi, m.sender.split('@')[0]);
+
+            await new Promise(r => setTimeout(r, 400));
+            await m.reply(replyText);
             analytics.recordMessage(m.sender, true);
-
-            // Handle Smart Human Handoff Alert to Owner
-            if (result.handoff) {
-                const ownerJid = getGlobalOwnerJid(m.client);
-                if (ownerJid) {
-                    const alertMsg = `🚨 *Smart Human Handoff Alert*\n\n` +
-                        `👤 *User:* @${m.sender.split('@')[0]} (${senderName})\n` +
-                        `❓ *Question:* "${result.handoff.query}"\n` +
-                        `📝 *Reason:* ${result.handoff.reason}\n\n` +
-                        `⏸️ _AI paused for this user._\n` +
-                        `👉 To resume AI after you reply, send:\n` +
-                        `*.airesume ${m.sender.split('@')[0]}*`;
-
-                    await m.client.sendMessage(ownerJid, {
-                        text: alertMsg,
-                        mentions: [m.sender]
-                    });
-                }
-            }
+            return;
         }
 
+        // 2. Debounce and Rate-Limiting Protection for AI API (Prevents 429 Quota Spikes)
+        const now = Date.now();
+        const lastReply = lastSenderReplyTime.get(m.sender) || 0;
+        if (now - lastReply < 3000) {
+            return; // Discard rapid-fire spam within 3 seconds
+        }
+
+        if (inFlightSenders.has(m.sender)) {
+            return; // Already generating a reply for this user
+        }
+
+        inFlightSenders.add(m.sender);
+        lastSenderReplyTime.set(m.sender, now);
+
         try {
-            if (m.client?.sendPresenceUpdate) {
-                await m.client.sendPresenceUpdate('paused', m.jid);
+            // Typing presence simulation
+            try {
+                if (m.client?.sendPresenceUpdate) {
+                    await m.client.sendPresenceUpdate('composing', m.jid);
+                }
+            } catch (e) {}
+
+            const result = await aiEngine.generateReply(clean, m.sender, senderName);
+
+            if (result && result.reply) {
+                await new Promise(r => setTimeout(r, 1200 + Math.random() * 1500));
+                await m.reply(result.reply);
+                analytics.recordMessage(m.sender, true);
+
+                // Handle Smart Human Handoff Alert to Owner
+                if (result.handoff) {
+                    const ownerJid = getGlobalOwnerJid(m.client);
+                    if (ownerJid) {
+                        const alertMsg = `🚨 *Smart Human Handoff Alert*\n\n` +
+                            `👤 *User:* @${m.sender.split('@')[0]} (${senderName})\n` +
+                            `❓ *Question:* "${result.handoff.query}"\n` +
+                            `📝 *Reason:* ${result.handoff.reason}\n\n` +
+                            `⏸️ _AI paused for this user._\n` +
+                            `👉 To resume AI after you reply, send:\n` +
+                            `*.airesume ${m.sender.split('@')[0]}*`;
+
+                        await m.client.sendMessage(ownerJid, {
+                            text: alertMsg,
+                            mentions: [m.sender]
+                        });
+                    }
+                }
             }
-        } catch (e) {}
+
+            try {
+                if (m.client?.sendPresenceUpdate) {
+                    await m.client.sendPresenceUpdate('paused', m.jid);
+                }
+            } catch (e) {}
+        } finally {
+            inFlightSenders.delete(m.sender);
+        }
 
     } catch (err) {
         console.error('AI Auto-reply listener error:', err.message);

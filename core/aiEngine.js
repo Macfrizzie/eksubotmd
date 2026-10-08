@@ -10,7 +10,7 @@ const HANDOFF_FILE = path.join(__dirname, '../handoffs.json');
 const DEFAULT_KB = {
     enabled: true,
     provider: 'gemini',
-    model: 'gemini-3.8-flash',
+    model: 'gemini-1.5-flash',
     temperature: 0.7,
     dmOnly: true,
     cooldownMinutes: 0,
@@ -208,32 +208,40 @@ class AIEngine {
         return this.kb.entries.length < initialLen;
     }
 
-    // Dynamic keyword search for token reduction
+    // Retrieve relevant entries (Gemini 1.5 has 1M token context window, so we don't prematurely discard documents)
     getRelevantEntries(userQuery) {
         const entries = this.kb.entries || [];
-        if (entries.length <= 2) return entries;
+        if (entries.length === 0) return [];
 
+        // Calculate total characters in knowledge base
+        const totalChars = entries.reduce((acc, e) => acc + (e.content?.length || 0) + (e.title?.length || 0), 0);
+
+        // If knowledge base is reasonable size (under 45,000 characters / ~11,000 tokens),
+        // pass ALL entries directly to Gemini so it has 100% of the knowledge context without false-negative dropouts!
+        if (totalChars < 45000 && entries.length <= 25) {
+            return entries;
+        }
+
+        // For massive knowledge bases, score and return the top 8 most relevant documents
         const words = userQuery.toLowerCase()
             .replace(/[^\w\s]/g, '')
             .split(/\s+/)
             .filter(w => w.length > 2 && !STOPWORDS.has(w));
 
-        if (words.length === 0) return entries.slice(0, 2);
-
         const scored = entries.map(entry => {
             let score = 0;
-            const titleLower = entry.title.toLowerCase();
-            const contentLower = entry.content.toLowerCase();
+            const titleLower = (entry.title || '').toLowerCase();
+            const contentLower = (entry.content || '').toLowerCase();
             for (const word of words) {
-                if (titleLower.includes(word)) score += 4;
-                if (contentLower.includes(word)) score += 1;
+                if (titleLower.includes(word)) score += 5;
+                if (contentLower.includes(word)) score += 2;
             }
             return { entry, score };
         });
 
         scored.sort((a, b) => b.score - a.score);
-        const relevant = scored.filter(s => s.score > 0).slice(0, 2).map(s => s.entry);
-        return relevant.length > 0 ? relevant : [entries[0]];
+        const matches = scored.filter(s => s.score > 0).map(s => s.entry);
+        return matches.length > 0 ? matches.slice(0, 8) : entries.slice(0, 6);
     }
 
     buildOptimizedPrompt(userQuery, senderName = 'Friend') {
@@ -394,7 +402,7 @@ FORMAT YOUR RESPONSE EXACTLY AS:
 
 💡 *Answer:* <your helpful answer${cleanName ? ` addressing ${cleanName}` : ''}>`;
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         const payload = {
             systemInstruction: { parts: [{ text: systemInstruction }] },
@@ -450,9 +458,9 @@ FORMAT YOUR RESPONSE EXACTLY AS:
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
-        let model = this.kb.model || 'gemini-3.8-flash';
-        if (model.includes('1.5') || model.includes('2.5') || model.includes('2.0')) {
-            model = 'gemini-3.8-flash';
+        let model = this.kb.model || 'gemini-1.5-flash';
+        if (model.includes('3.8') || !model) {
+            model = 'gemini-1.5-flash';
         }
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;

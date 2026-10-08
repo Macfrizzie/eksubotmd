@@ -14,6 +14,7 @@ const path = require('path');
 const NodeCache = require('node-cache');
 
 // --- 🛡️ CACHES & OPTIMIZATIONS ---
+const botStartTime = Math.floor(Date.now() / 1000);
 const messageStore = new Map();
 const MAX_RAM_MESSAGES = 500; 
 
@@ -215,13 +216,8 @@ async function startEksuBot() {
         const pairNumber = rawPairNumber.replace(/[^0-9]/g, '');
 
         if (!sock.authState.creds.registered) {
-            if (!pairNumber) {
-                console.log('\n⚠️ BOT IS NOT REGISTERED.');
-                console.log('📌 Please set PAIR_NUMBER=your_number in .env or via Web Dashboard to receive a WhatsApp pairing code.\n');
-            } else if (!isPairingRequested) {
-                isPairingRequested = true;
-                setTimeout(() => requestPairing(pairNumber), 2500);
-            }
+            console.log('\n⚠️ BOT IS NOT REGISTERED.');
+            console.log('📌 Open the Web Dashboard to request your WhatsApp Pairing Code on-demand.\n');
         }
 
         // Connection events with backoff
@@ -295,9 +291,21 @@ async function startEksuBot() {
                         continue;
                     }
 
-                    // 2. Ignore old messages (> 60s)
-                    if (rawMessage.messageTimestamp && (Date.now() / 1000 - rawMessage.messageTimestamp > 60)) {
-                        continue;
+                    // 2. Ignore historical / stale messages (> 60s or before bot boot)
+                    let msgTimestamp = 0;
+                    if (rawMessage.messageTimestamp) {
+                        const ts = rawMessage.messageTimestamp;
+                        if (typeof ts === 'object' && ts !== null) {
+                            msgTimestamp = ts.low || Number(ts.toString?.()) || 0;
+                        } else {
+                            msgTimestamp = Number(ts) || 0;
+                        }
+                    }
+
+                    const nowSeconds = Math.floor(Date.now() / 1000);
+                    if (msgTimestamp > 0) {
+                        if (nowSeconds - msgTimestamp > 60) continue;
+                        if (msgTimestamp < (botStartTime - 5)) continue;
                     }
 
                     // 3. Serialize message
