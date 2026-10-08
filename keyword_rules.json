@@ -4,31 +4,35 @@
     "keyword": "hello",
     "matchType": "contains",
     "response": "Hello @user! 👋 How can I help you today? Ask me any questions or type .menu for commands.",
-    "enabled": true,
-    "createdAt": "2026-10-08T12:00:00.000Z"
+    "enabled": false,
+    "createdAt": "2026-10-08T12:00:00.000Z",
+    "updatedAt": "2026-10-08T16:26:50.535Z"
   },
   {
     "id": "rule_fees",
     "keyword": "school fees",
     "matchType": "contains",
     "response": "📌 School fees can be paid via the student portal at portal.eksu.edu.ng. Late payment penalties apply after the deadline.",
-    "enabled": true,
-    "createdAt": "2026-10-08T12:00:00.000Z"
+    "enabled": false,
+    "createdAt": "2026-10-08T12:00:00.000Z",
+    "updatedAt": "2026-10-08T16:26:51.555Z"
   },
   {
     "id": "rule_portal",
     "keyword": "portal",
     "matchType": "similar",
     "response": "🔗 Official EKSU Student Portal is located at: https://portal.eksu.edu.ng",
-    "enabled": true,
-    "createdAt": "2026-10-08T12:00:00.000Z"
+    "enabled": false,
+    "createdAt": "2026-10-08T12:00:00.000Z",
+    "updatedAt": "2026-10-08T16:26:53.731Z"
   },
   {
     "id": "rule_creator",
     "keyword": "who created you",
     "matchType": "exact",
     "response": "🤖 I am Eksu-MD, an intelligent WhatsApp assistant built to provide instant support and automate group tasks!",
-    "enabled": true,
-    "createdAt": "2026-10-08T12:00:00.000Z"
+    "enabled": false,
+    "createdAt": "2026-10-08T12:00:00.000Z",
+    "updatedAt": "2026-10-08T16:26:55.706Z"
   }
 ]
