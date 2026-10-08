@@ -313,10 +313,13 @@ app.post('/api/backup/restore', (req, res) => {
     }
 });
 
-function startServer(port = 3000) {
-    const PORT = process.env.PORT || port;
+function startServer(port = null) {
+    const PORT = process.env.SERVER_PORT || process.env.PORT || port || 3000;
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`🌐 Web Dashboard running on port ${PORT} (http://0.0.0.0:${PORT})`);
+        if (process.env.SERVER_PORT) {
+            console.log(`📌 Pterodactyl panel detected: Allocated port is ${process.env.SERVER_PORT}`);
+        }
     });
     return server;
 }

@@ -70,7 +70,7 @@ const logger = require('./core/logger');
 const { startServer } = require('./web/server');
 
 // Start Web Management Interface
-startServer(process.env.PORT || 3000);
+startServer(process.env.SERVER_PORT || process.env.PORT || 3000);
 
 global.Module = Module;
 
