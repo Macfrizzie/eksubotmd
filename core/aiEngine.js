@@ -40,11 +40,45 @@ const STOPWORDS = new Set([
     'with', 'you', 'your', 'please', 'tell'
 ]);
 
+class AsyncAIQueue {
+    constructor(concurrency = 2, delayBetweenMs = 900) {
+        this.concurrency = concurrency;
+        this.delayBetweenMs = delayBetweenMs;
+        this.queue = [];
+        this.activeCount = 0;
+    }
+
+    push(taskFn) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ taskFn, resolve, reject });
+            this.processNext();
+        });
+    }
+
+    async processNext() {
+        if (this.activeCount >= this.concurrency || this.queue.length === 0) return;
+        this.activeCount++;
+        const { taskFn, resolve, reject } = this.queue.shift();
+        try {
+            const result = await taskFn();
+            resolve(result);
+        } catch (err) {
+            reject(err);
+        } finally {
+            setTimeout(() => {
+                this.activeCount--;
+                this.processNext();
+            }, this.delayBetweenMs);
+        }
+    }
+}
+
 class AIEngine {
     constructor() {
         this.conversations = {};
         this.handoffs = {}; // senderId -> { reason, query, senderName, timestamp }
         this.responseCache = new Map();
+        this.queue = new AsyncAIQueue(2, 900);
         this.loadKB();
         this.loadConversations();
         this.loadHandoffs();
@@ -275,9 +309,9 @@ ${cleanName ? `- The user chatting with you is named "${cleanName}". Address the
             const provider = this.kb.provider || 'gemini';
 
             if (provider === 'gemini') {
-                rawReply = await this.callGemini(systemInstruction, history, cleanQuery);
+                rawReply = await this.queue.push(() => this.callGemini(systemInstruction, history, cleanQuery));
             } else {
-                rawReply = await this.callOpenAI(systemInstruction, history, cleanQuery);
+                rawReply = await this.queue.push(() => this.callOpenAI(systemInstruction, history, cleanQuery));
             }
 
             if (!rawReply) return { reply: null };
@@ -378,10 +412,10 @@ FORMAT YOUR RESPONSE EXACTLY AS:
         };
 
         const startTime = Date.now();
-        const response = await axios.post(url, payload, {
+        const response = await this.queue.push(() => axios.post(url, payload, {
             headers: { 'Content-Type': 'application/json' },
             timeout: 30000
-        });
+        }));
 
         const rawText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!rawText) return null;
