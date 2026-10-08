@@ -1,0 +1,25 @@
+# Environment & Secrets
+.env
+*.env.local
+
+# WhatsApp Session Auth (Never commit credentials)
+session/
+auth_info/
+creds.json
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database & Runtime Data
+database.json
+temp/
+*.tmp
+*.log
+
+# PM2 & OS files
+.pm2/
+.DS_Store
+Thumbs.db

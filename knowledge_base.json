@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "provider": "gemini",
+  "model": "gemini-3.8-flash",
+  "temperature": 0.7,
+  "dmOnly": true,
+  "cooldownMinutes": 0,
+  "systemPrompt": "You are the helpful AI assistant for Eksu-MD.\nYou answer questions politely, concisely, and helpfully using the provided Knowledge Base.\nIf you do not know the answer based on the knowledge base, politely inform the user and tell them an admin will get back to them.\nKeep answers under 3-4 sentences unless detailed explanation is asked. Speak in a friendly tone.",
+  "entries": [
+    {
+      "id": "kb_welcome",
+      "title": "Welcome & Bot Overview",
+      "content": "Eksu-MD is a WhatsApp assistant bot designed for Ekiti State University students and community members. It provides campus information, utilities, group management, and automated support."
+    },
+    {
+      "id": "kb_commands",
+      "title": "Commands Information",
+      "content": "Users can type .menu to view all available commands. Popular commands include .ping (check latency), .weather (city weather), .sticker (convert image to sticker), and .vv (recover view-once media)."
+    }
+  ]
+}

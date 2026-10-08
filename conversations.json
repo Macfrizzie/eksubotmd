@@ -1,0 +1,36 @@
+{
+  "user_123": {
+    "history": [
+      {
+        "role": "user",
+        "text": "What did I say my name was and what course am I applying for?"
+      },
+      {
+        "role": "model",
+        "text": "Your name is Tunde, but I don"
+      }
+    ],
+    "lastInteraction": 1791428769398
+  },
+  "test_tunde": {
+    "history": [
+      {
+        "role": "user",
+        "text": "Hello, my name is Tunde and I love football"
+      },
+      {
+        "role": "model",
+        "text": "Hello Tunde, it's nice to meet a fellow football lover! I'm Eksu-MD, your assistant for Ekiti State University campus info and utilities. Feel free to type `.menu` anytime to see what I can do for you!"
+      },
+      {
+        "role": "user",
+        "text": "What is my name and what sport do I love?"
+      },
+      {
+        "role": "model",
+        "text": "Your name is Tunde, and you love football! How can I help you today?"
+      }
+    ],
+    "lastInteraction": 1791428914095
+  }
+}

@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eksu-MD | Bot Control Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font & Lucide Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <i data-lucide="bot" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight flex items-center gap-2">
+                        Eksu-MD
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">v7.0</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">WhatsApp AI & Management Console</p>
+                </div>
+            </div>
+
+            <!-- Status Pill, Pairing Alert, Restart Button -->
+            <div class="flex items-center space-x-3">
+                <div id="pairingAlert" class="hidden items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono animate-pulse">
+                    <i data-lucide="key" class="w-3.5 h-3.5"></i>
+                    Pairing Code: <span id="pairingCodeDisplay" class="font-bold tracking-wider text-sm text-white"></span>
+                </div>
+
+                <div id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
+                    <span id="statusIndicator" class="w-2 h-2 rounded-full bg-slate-500 animate-ping"></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
+
+                <button onclick="restartBotServer()" title="Restart Bot Socket" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Restart
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Navigation Tabs -->
+    <div class="border-b border-slate-800 bg-slate-900/40">
+        <div class="max-w-7xl mx-auto px-4 flex space-x-1 overflow-x-auto py-2">
+            <button onclick="switchTab('console')" id="tab-btn-console" class="tab-btn active flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition bg-slate-800 text-emerald-400 border border-slate-700">
+                <i data-lucide="terminal" class="w-4 h-4"></i> Live Console
+            </button>
+            <button onclick="switchTab('ai')" id="tab-btn-ai" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="sparkles" class="w-4 h-4"></i> AI Knowledge Base
+            </button>
+            <button onclick="switchTab('env')" id="tab-btn-env" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="sliders" class="w-4 h-4"></i> Environment & Config
+            </button>
+            <button onclick="switchTab('firebase')" id="tab-btn-firebase" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="cloud" class="w-4 h-4"></i> Firebase Sync
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+
+        <!-- TAB 1: LIVE CONSOLE & METRICS -->
+        <section id="tab-console" class="tab-content space-y-6">
+            <!-- Metrics Row -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+                    <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg"><i data-lucide="activity" class="w-6 h-6"></i></div>
+                    <div>
+                        <div class="text-xs text-slate-400 font-medium">Uptime</div>
+                        <div id="statUptime" class="text-lg font-bold">0s</div>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+                    <div class="p-3 bg-blue-500/10 text-blue-400 rounded-lg"><i data-lucide="user" class="w-6 h-6"></i></div>
+                    <div>
+                        <div class="text-xs text-slate-400 font-medium">Device User</div>
+                        <div id="statUser" class="text-lg font-bold truncate">Eksu-MD</div>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+                    <div class="p-3 bg-purple-500/10 text-purple-400 rounded-lg"><i data-lucide="shield" class="w-6 h-6"></i></div>
+                    <div>
+                        <div class="text-xs text-slate-400 font-medium">Bot Mode</div>
+                        <div id="statMode" class="text-lg font-bold uppercase text-purple-400">PUBLIC</div>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+                    <div class="p-3 bg-amber-500/10 text-amber-400 rounded-lg"><i data-lucide="cpu" class="w-6 h-6"></i></div>
+                    <div>
+                        <div class="text-xs text-slate-400 font-medium">RAM Saver</div>
+                        <div class="text-lg font-bold text-amber-400">ACTIVE (500 msg cap)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terminal Box -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col h-[520px]">
+                <div class="bg-slate-800/60 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-xs text-slate-300 font-mono">
+                        <span class="w-3 h-3 rounded-full bg-rose-500/80 inline-block"></span>
+                        <span class="w-3 h-3 rounded-full bg-amber-500/80 inline-block"></span>
+                        <span class="w-3 h-3 rounded-full bg-emerald-500/80 inline-block"></span>
+                        <span class="ml-2 font-medium">live-activity-stream.log</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                            <input type="checkbox" id="autoScrollCheck" checked class="rounded bg-slate-800 border-slate-700 text-emerald-500">
+                            Auto-scroll
+                        </label>
+                        <button onclick="clearConsoleLogs()" class="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 flex items-center gap-1">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div id="terminalBody" class="p-4 font-mono text-xs overflow-y-auto flex-1 space-y-1.5 leading-relaxed bg-black/40">
+                    <div class="text-slate-500 italic">Waiting for bot activity events...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: AI KNOWLEDGE BASE -->
+        <section id="tab-ai" class="tab-content hidden space-y-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900 p-5 rounded-xl border border-slate-800">
+                <div>
+                    <h2 class="text-lg font-bold flex items-center gap-2 text-white">
+                        <i data-lucide="brain-circuit" class="w-5 h-5 text-emerald-400"></i> AI Auto-Responder Engine
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Configure your AI persona and document knowledge base for contextual replies in WhatsApp DMs.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="kbEnabledToggle" class="sr-only peer" onchange="toggleAIState()">
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        <span id="kbStateLabel" class="ml-3 text-sm font-medium text-slate-300">AI Active</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left: Configuration & System Prompt (1 Col) -->
+                <div class="lg:col-span-1 space-y-6">
+                    <!-- Model Settings Card -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                        <h3 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+                            <i data-lucide="settings-2" class="w-4 h-4 text-emerald-400"></i> Engine Settings
+                        </h3>
+                        <div>
+                            <label class="text-xs text-slate-400">AI Provider</label>
+                            <select id="aiProviderSelect" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                                <option value="gemini">Google Gemini (Recommended)</option>
+                                <option value="openai">OpenAI (ChatGPT)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400">Model Name</label>
+                            <input type="text" id="aiModelInput" placeholder="gemini-1.5-flash" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs text-slate-400">Temperature</label>
+                                <input type="number" step="0.1" min="0" max="1" id="aiTempInput" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400">Cooldown (Mins)</label>
+                                <input type="number" min="0" max="60" id="aiCooldownInput" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 pt-2">
+                            <input type="checkbox" id="aiDmOnlyCheck" class="rounded bg-slate-800 border-slate-700 text-emerald-500">
+                            <label for="aiDmOnlyCheck" class="text-xs text-slate-300">Reply in Private Chats Only (Safe)</label>
+                        </div>
+                    </div>
+
+                    <!-- System Persona Prompt -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+                                <i data-lucide="message-square" class="w-4 h-4 text-emerald-400"></i> Bot Instructions
+                            </h3>
+                        </div>
+                        <textarea id="aiSystemPrompt" rows="6" placeholder="Define how your bot behaves, speaks, and responds..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 font-mono leading-relaxed focus:outline-none focus:border-emerald-500"></textarea>
+                        <button onclick="saveAISettings()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> Save Persona & Settings
+                        </button>
+                    </div>
+
+                    <!-- Live Test Playground -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                        <h3 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+                            <i data-lucide="flask-conical" class="w-4 h-4 text-purple-400"></i> Test Knowledge in Browser
+                        </h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="aiTestQuery" placeholder="Ask a question..." class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-purple-500">
+                            <button onclick="testAIReply()" class="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1">
+                                <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <div id="aiTestResponse" class="p-3 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 min-h-[60px] italic">
+                            Response will appear here...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Knowledge Base Documents (2 Cols) -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-bold text-base text-slate-100">Knowledge Documents & FAQs</h3>
+                            <p class="text-xs text-slate-400">These chunks are provided as context to the AI model.</p>
+                        </div>
+                        <button onclick="openAddEntryModal()" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Knowledge Entry
+                        </button>
+                    </div>
+
+                    <!-- Entries List Container -->
+                    <div id="kbEntriesContainer" class="space-y-3">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: ENVIRONMENT & CONFIG -->
+        <section id="tab-env" class="tab-content hidden space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i data-lucide="sliders" class="w-5 h-5 text-emerald-400"></i> Environment Variables (.env)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Configure bot credentials, phone numbers, and keys without manual file editing.</p>
+                </div>
+
+                <form id="envForm" onsubmit="saveEnvSettings(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="text-xs font-medium text-slate-300">Bot Name</label>
+                            <input type="text" name="BOT_NAME" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-300">Command Prefix</label>
+                            <input type="text" name="PREFIX" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-300">Bot Mode</label>
+                            <select name="MODE" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100">
+                                <option value="public">Public (All users)</option>
+                                <option value="private">Private (Owner only)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-medium text-slate-300">Pairing Phone Number (Without +)</label>
+                                <button type="button" onclick="requestPairingNow()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 transition">
+                                    <i data-lucide="key" class="w-3 h-3"></i> Get Pairing Code
+                                </button>
+                            </div>
+                            <div class="mt-1 flex gap-2">
+                                <input type="text" id="pairNumberInput" name="PAIR_NUMBER" placeholder="2348012345678" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono">
+                                <button type="button" onclick="requestPairingNow()" class="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+                                    <i data-lucide="zap" class="w-3.5 h-3.5"></i> Pair
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-300">Owner Numbers (Comma separated)</label>
+                            <input type="text" name="OWNER_NUMBERS" placeholder="2348012345678,2348087654321" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-300">Sudo Numbers (Comma separated)</label>
+                            <input type="text" name="SUDO" placeholder="2348012345678" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-300">Google Gemini API Key</label>
+                            <input type="password" name="GEMINI_API_KEY" placeholder="AIza..." class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-300">OpenAI API Key (Optional)</label>
+                            <input type="password" name="OPENAI_API_KEY" placeholder="sk-..." class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono">
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-800 flex justify-end">
+                        <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition">
+                            <i data-lucide="check" class="w-4 h-4"></i> Save Changes to .env
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- TAB 4: FIREBASE SYNC -->
+        <section id="tab-firebase" class="tab-content hidden space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i data-lucide="cloud" class="w-5 h-5 text-amber-400"></i> Firebase Cloud Firestore Sync
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Back up your Knowledge Base, auto-replies, and bot variables to Firebase Cloud for persistence across servers.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-3">
+                        <h3 class="text-sm font-semibold text-slate-200">Firebase Configuration</h3>
+                        <div>
+                            <label class="text-xs text-slate-400">Firebase Project ID</label>
+                            <input type="text" id="firebaseProjectIdInput" placeholder="my-bot-project-id" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400">Firebase Web API Key (Optional for Open rules)</label>
+                            <input type="password" id="firebaseApiKeyInput" placeholder="AIza..." class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono">
+                        </div>
+                        <button onclick="saveFirebaseCredentials()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition">
+                            Save Firebase Config
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-sm font-semibold text-slate-200 mb-2">Cloud Actions</h3>
+                            <div class="text-xs text-slate-400 space-y-2">
+                                <p>• <strong>Push to Cloud:</strong> Overwrites Cloud Firestore with your current local Knowledge Base & configs.</p>
+                                <p>• <strong>Pull from Cloud:</strong> Restores local Knowledge Base from Firestore documents.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3 pt-4">
+                            <button onclick="pushToFirebase()" class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition">
+                                <i data-lucide="cloud-upload" class="w-4 h-4"></i> Push to Cloud
+                            </button>
+                            <button onclick="pullFromFirebase()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 flex items-center justify-center gap-1.5 transition">
+                                <i data-lucide="cloud-download" class="w-4 h-4"></i> Pull from Cloud
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="firebaseStatusNotice" class="text-xs font-mono text-slate-400">
+                    Status: Checking...
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal for Adding/Editing Knowledge Document -->
+    <div id="kbModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 id="kbModalTitle" class="text-base font-bold text-white">Add Knowledge Document</h3>
+                <button onclick="closeKBModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <input type="hidden" id="modalEntryId">
+            <div>
+                <label class="text-xs text-slate-400">Document Title / Topic</label>
+                <input type="text" id="modalEntryTitle" placeholder="e.g. Admission Requirements" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
+            </div>
+            <div>
+                <label class="text-xs text-slate-400">Knowledge Content</label>
+                <textarea id="modalEntryContent" rows="6" placeholder="Provide factual details, steps, FAQs, or description..." class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 leading-relaxed"></textarea>
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button onclick="closeKBModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">Cancel</button>
+                <button onclick="submitKBEntry()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                    <i data-lucide="save" class="w-3.5 h-3.5"></i> Save Document
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Script -->
+    <script>
+        lucide.createIcons();
+
+        // TAB SWITCHING
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-slate-800', 'text-emerald-400', 'border', 'border-slate-700');
+                btn.classList.add('text-slate-400');
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+            activeBtn.classList.remove('text-slate-400');
+            activeBtn.classList.add('bg-slate-800', 'text-emerald-400', 'border', 'border-slate-700');
+            lucide.createIcons();
+        }
+
+        // WEBSOCKET LOGGING & STATUS
+        let ws;
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+            ws.onopen = () => {
+                console.log('Connected to Bot Event Stream');
+            };
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'init') {
+                    updateStatus(msg.status);
+                    renderLogs(msg.logs);
+                } else if (msg.type === 'status') {
+                    updateStatus(msg.data);
+                } else if (msg.type === 'log') {
+                    appendLog(msg.data);
+                } else if (msg.type === 'clear') {
+                    document.getElementById('terminalBody').innerHTML = '';
+                }
+            };
+
+            ws.onclose = () => {
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        connectWebSocket();
+
+        function updateStatus(status) {
+            const ind = document.getElementById('statusIndicator');
+            const txt = document.getElementById('statusText');
+            const pairing = document.getElementById('pairingAlert');
+
+            if (status.connected) {
+                ind.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400';
+                txt.textContent = 'Connected';
+                txt.className = 'text-emerald-400 font-semibold';
+                pairing.classList.add('hidden');
+            } else if (status.connecting) {
+                ind.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+                txt.textContent = 'Connecting...';
+                txt.className = 'text-amber-400 font-semibold';
+            } else {
+                ind.className = 'w-2 h-2 rounded-full bg-rose-500';
+                txt.textContent = 'Disconnected';
+                txt.className = 'text-rose-400 font-semibold';
+            }
+
+            if (status.pairingCode) {
+                pairing.classList.remove('hidden');
+                document.getElementById('pairingCodeDisplay').textContent = status.pairingCode;
+            }
+
+            if (status.uptime) {
+                const mins = Math.floor(status.uptime / 60);
+                const hrs = Math.floor(mins / 60);
+                document.getElementById('statUptime').textContent = hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m ${status.uptime % 60}s`;
+            }
+
+            if (status.user?.name || status.user?.id) {
+                document.getElementById('statUser').textContent = status.user.name || status.user.id.split('@')[0];
+            }
+        }
+
+        function appendLog(entry) {
+            const body = document.getElementById('terminalBody');
+            const line = document.createElement('div');
+            
+            let color = 'text-slate-300';
+            if (entry.level === 'warn') color = 'text-amber-300';
+            if (entry.level === 'error') color = 'text-rose-400';
+
+            line.className = `flex gap-2 ${color}`;
+            line.innerHTML = `<span class="text-slate-600 select-none">[${entry.timestamp}]</span><span>${escapeHtml(entry.message)}</span>`;
+            body.appendChild(line);
+
+            if (document.getElementById('autoScrollCheck').checked) {
+                body.scrollTop = body.scrollHeight;
+            }
+        }
+
+        function renderLogs(logs) {
+            const body = document.getElementById('terminalBody');
+            body.innerHTML = '';
+            logs.forEach(appendLog);
+        }
+
+        function clearConsoleLogs() {
+            fetch('/api/logs', { method: 'DELETE' });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+        }
+
+        // LOAD DATA ON START
+        window.addEventListener('DOMContentLoaded', () => {
+            loadEnv();
+            loadKnowledgeBase();
+            loadFirebaseStatus();
+        });
+
+        // ENV MANAGER
+        async function loadEnv() {
+            const res = await fetch('/api/env');
+            const data = await res.json();
+            const form = document.getElementById('envForm');
+            for (const [k, v] of Object.entries(data)) {
+                if (form.elements[k]) form.elements[k].value = v;
+            }
+            if (data.MODE) document.getElementById('statMode').textContent = data.MODE.toUpperCase();
+            if (data.FIREBASE_PROJECT_ID) document.getElementById('firebaseProjectIdInput').value = data.FIREBASE_PROJECT_ID;
+            if (data.FIREBASE_API_KEY) document.getElementById('firebaseApiKeyInput').value = data.FIREBASE_API_KEY;
+        }
+
+        async function saveEnvSettings(e) {
+            e.preventDefault();
+            const form = document.getElementById('envForm');
+            const data = Object.fromEntries(new FormData(form).entries());
+            const res = await fetch('/api/env', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) alert('Settings successfully updated!');
+        }
+
+        // KNOWLEDGE BASE MANAGER
+        let currentKB = null;
+
+        async function loadKnowledgeBase() {
+            const res = await fetch('/api/knowledge');
+            currentKB = await res.json();
+
+            document.getElementById('kbEnabledToggle').checked = !!currentKB.enabled;
+            document.getElementById('kbStateLabel').textContent = currentKB.enabled ? 'AI Active' : 'AI Paused';
+            document.getElementById('aiProviderSelect').value = currentKB.provider || 'gemini';
+            document.getElementById('aiModelInput').value = currentKB.model || 'gemini-1.5-flash';
+            document.getElementById('aiTempInput').value = currentKB.temperature ?? 0.7;
+            document.getElementById('aiCooldownInput').value = currentKB.cooldownMinutes ?? 1;
+            document.getElementById('aiDmOnlyCheck').checked = currentKB.dmOnly !== false;
+            document.getElementById('aiSystemPrompt').value = currentKB.systemPrompt || '';
+
+            renderKBEntries(currentKB.entries || []);
+        }
+
+        function renderKBEntries(entries) {
+            const container = document.getElementById('kbEntriesContainer');
+            container.innerHTML = '';
+
+            if (entries.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-slate-500 border border-slate-800 rounded-xl">No knowledge documents yet. Click "Add Knowledge Entry" above.</div>`;
+                return;
+            }
+
+            entries.forEach(e => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-slate-700 transition';
+                card.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <h4 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-4 h-4 text-emerald-400"></i> ${escapeHtml(e.title)}
+                        </h4>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="editKBEntry('${e.id}')" class="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-800"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                            <button onclick="deleteKBEntry('${e.id}')" class="p-1.5 text-rose-400 hover:text-rose-300 rounded hover:bg-slate-800"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-300 mt-2 leading-relaxed line-clamp-3">${escapeHtml(e.content)}</p>
+                `;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        async function toggleAIState() {
+            const enabled = document.getElementById('kbEnabledToggle').checked;
+            document.getElementById('kbStateLabel').textContent = enabled ? 'AI Active' : 'AI Paused';
+            await fetch('/api/knowledge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled })
+            });
+        }
+
+        async function saveAISettings() {
+            const payload = {
+                provider: document.getElementById('aiProviderSelect').value,
+                model: document.getElementById('aiModelInput').value,
+                temperature: parseFloat(document.getElementById('aiTempInput').value),
+                cooldownMinutes: parseInt(document.getElementById('aiCooldownInput').value, 10),
+                dmOnly: document.getElementById('aiDmOnlyCheck').checked,
+                systemPrompt: document.getElementById('aiSystemPrompt').value
+            };
+            const res = await fetch('/api/knowledge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) alert('AI Settings Saved!');
+        }
+
+        async function testAIReply() {
+            const query = document.getElementById('aiTestQuery').value.trim();
+            if (!query) return;
+            const respBox = document.getElementById('aiTestResponse');
+            respBox.textContent = 'Thinking with Knowledge Base...';
+            const res = await fetch('/api/knowledge/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+            const data = await res.json();
+            respBox.textContent = data.reply || 'No response.';
+        }
+
+        // MODAL MANAGEMENT
+        function openAddEntryModal() {
+            document.getElementById('modalEntryId').value = '';
+            document.getElementById('modalEntryTitle').value = '';
+            document.getElementById('modalEntryContent').value = '';
+            document.getElementById('kbModalTitle').textContent = 'Add Knowledge Document';
+            document.getElementById('kbModal').classList.remove('hidden');
+        }
+
+        function editKBEntry(id) {
+            const entry = currentKB.entries.find(e => e.id === id);
+            if (!entry) return;
+            document.getElementById('modalEntryId').value = entry.id;
+            document.getElementById('modalEntryTitle').value = entry.title;
+            document.getElementById('modalEntryContent').value = entry.content;
+            document.getElementById('kbModalTitle').textContent = 'Edit Knowledge Document';
+            document.getElementById('kbModal').classList.remove('hidden');
+        }
+
+        function closeKBModal() {
+            document.getElementById('kbModal').classList.add('hidden');
+        }
+
+        async function submitKBEntry() {
+            const id = document.getElementById('modalEntryId').value;
+            const title = document.getElementById('modalEntryTitle').value.trim();
+            const content = document.getElementById('modalEntryContent').value.trim();
+
+            if (!title || !content) return alert('Title and content are required');
+
+            if (id) {
+                await fetch(`/api/knowledge/entry/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, content })
+                });
+            } else {
+                await fetch('/api/knowledge/entry', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, content })
+                });
+            }
+
+            closeKBModal();
+            loadKnowledgeBase();
+        }
+
+        async function deleteKBEntry(id) {
+            if (!confirm('Are you sure you want to delete this document?')) return;
+            await fetch(`/api/knowledge/entry/${id}`, { method: 'DELETE' });
+            loadKnowledgeBase();
+        }
+
+        // FIREBASE ACTIONS
+        async function loadFirebaseStatus() {
+            const res = await fetch('/api/firebase/status');
+            const data = await res.json();
+            const el = document.getElementById('firebaseStatusNotice');
+            if (data.configured) {
+                el.innerHTML = `🟢 <strong>Configured</strong> | Project: <code>${data.projectId}</code> | Last Sync: ${data.lastSync || 'Never'}`;
+            } else {
+                el.innerHTML = `⚠️ <strong>Not Configured:</strong> Set your Firebase Project ID above to enable Cloud Firestore sync.`;
+            }
+        }
+
+        async function saveFirebaseCredentials() {
+            const projectId = document.getElementById('firebaseProjectIdInput').value.trim();
+            const apiKey = document.getElementById('firebaseApiKeyInput').value.trim();
+            await fetch('/api/env', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ FIREBASE_PROJECT_ID: projectId, FIREBASE_API_KEY: apiKey })
+            });
+            alert('Firebase credentials saved!');
+            loadFirebaseStatus();
+        }
+
+        async function pushToFirebase() {
+            const res = await fetch('/api/firebase/push', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                alert('Successfully pushed knowledge base & settings to Cloud Firestore!');
+                loadFirebaseStatus();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        }
+
+        async function requestPairingNow() {
+            const input = document.getElementById('pairNumberInput');
+            const number = input ? input.value.trim() : '';
+            if (!number) return alert('Please enter your WhatsApp phone number first.');
+
+            // Save first to .env
+            await fetch('/api/env', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ PAIR_NUMBER: number })
+            });
+
+            // Request Code
+            const res = await fetch('/api/bot/pair', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(`📞 Your Pairing Code: ${data.code}\n\nEnter this code on your phone in WhatsApp > Linked Devices.`);
+            } else {
+                alert(`Pairing request: ${data.error || 'Check terminal or status'}`);
+            }
+        }
+
+        async function restartBotServer() {
+            if (!confirm('Restart bot connection?')) return;
+            const res = await fetch('/api/bot/restart', { method: 'POST' });
+            const data = await res.json();
+            alert(data.message || 'Restart initiated');
+        }
+    </script>
+</body>
+</html>
