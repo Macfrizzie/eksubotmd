@@ -810,10 +810,14 @@
                         Smart Human Handoff Queue
                     </h2>
                     <p class="text-xs text-slate-400">Users who asked questions outside the Knowledge Base or requested human attention. AI is paused for them.</p>
+                <div class="flex items-center gap-2">
+                    <button onclick="loadHandoffQueue()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Queue
+                    </button>
+                    <button onclick="resumeAllUsersAI()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow shadow-emerald-600/30">
+                        <i data-lucide="play-circle" class="w-3.5 h-3.5"></i> Resume All Chats
+                    </button>
                 </div>
-                <button onclick="loadHandoffQueue()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition">
-                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Queue
-                </button>
             </div>
 
             <!-- Info banner -->
@@ -1934,6 +1938,22 @@
                 }
             } catch (err) {
                 alert('Error resuming AI: ' + err.message);
+            }
+        }
+
+        async function resumeAllUsersAI() {
+            if (!confirm('Resume AI auto-reply for all paused users immediately?')) return;
+            try {
+                const res = await fetch('/api/handoff/resume-all', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    alert('✅ AI auto-replies resumed for all chats!');
+                    loadHandoffQueue();
+                } else {
+                    alert('Could not resume all users');
+                }
+            } catch (err) {
+                alert('Error resuming all chats: ' + err.message);
             }
         }
 

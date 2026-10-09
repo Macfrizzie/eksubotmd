@@ -270,6 +270,13 @@ Module({
 }, async (m, match) => {
     let target = (match[1] || '').trim();
 
+    // 0. If user typed ".airesume all", clear all paused chats!
+    if (target.toLowerCase() === 'all') {
+        aiEngine.clearAllHandoffs();
+        aiEngine.saveKB({ enabled: true });
+        return m.reply("🟢 *AI Auto-Replies Resumed for ALL Chats!*\nAll paused chats have been unpaused, and global AI is active.");
+    }
+
     // 1. If quoted message, target the quoted user
     if (!target && m.reply_message?.sender) {
         target = m.reply_message.sender;
@@ -299,7 +306,7 @@ Module({
 
     // 4. If sent with no args in group or owner note-to-self, resume globally
     aiEngine.saveKB({ enabled: true });
-    return m.reply("🟢 *AI Auto-Responder Resumed Globally!*\nThe bot is now answering incoming WhatsApp messages using the Knowledge Base.");
+    return m.reply("🟢 *AI Auto-Responder Resumed Globally!*\nThe bot is now answering incoming WhatsApp messages using the Knowledge Base.\n\n_Tip:_ To unpause all individual chats, send *.airesume all*.");
 });
 
 // 5. SMART HANDOFF & PAUSE: .aipause [user]

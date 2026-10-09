@@ -11,16 +11,18 @@ const downloadMedia = async (m) => {
 
 // Global Outbound Message Rate Pacer (Prevents rapid message bursts)
 let lastSendPromise = Promise.resolve();
-const MIN_SEND_GAP_MS = 1200; // 1.2s minimum spacing between outbound messages
+const MIN_SEND_GAP_MS = 800; // 0.8s minimum spacing between outbound messages
 
 function pacedSend(sendFn) {
-    lastSendPromise = lastSendPromise.then(async () => {
-        await new Promise(resolve => setTimeout(resolve, MIN_SEND_GAP_MS + Math.floor(Math.random() * 400)));
+    const p = lastSendPromise.then(async () => {
+        await new Promise(resolve => setTimeout(resolve, MIN_SEND_GAP_MS + Math.floor(Math.random() * 300)));
         return sendFn();
-    }).catch(err => {
-        console.error("Outbound message error:", err.message);
     });
-    return lastSendPromise;
+    // Keep chain going even on errors
+    lastSendPromise = p.catch(err => {
+        console.error("Outbound message error:", err?.message || err);
+    });
+    return p;
 }
 
 async function serialize(sock, m) {

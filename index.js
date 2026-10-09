@@ -14,7 +14,7 @@ const path = require('path');
 const NodeCache = require('node-cache');
 
 // --- 🛡️ CACHES & OPTIMIZATIONS ---
-const botStartTime = Math.floor(Date.now() / 1000);
+let botStartTime = Math.floor(Date.now() / 1000);
 const messageStore = new Map();
 const MAX_RAM_MESSAGES = 500; 
 
@@ -270,6 +270,7 @@ async function startEksuBot() {
             } else if (connection === 'open') {
                 retries = 0;
                 consecutiveCryptoErrors = 0;
+                botStartTime = Math.floor(Date.now() / 1000);
                 logger.setStatus({ 
                     connected: true, 
                     connecting: false, 
@@ -311,7 +312,7 @@ async function startEksuBot() {
                         continue;
                     }
 
-                    // 2. Ignore historical / stale messages (> 60s or before bot boot)
+                    // 2. Ignore messages that arrived prior to bot startup (allow 300s window for real-time delivery jitter)
                     let msgTimestamp = 0;
                     if (rawMessage.messageTimestamp) {
                         const ts = rawMessage.messageTimestamp;
@@ -324,9 +325,10 @@ async function startEksuBot() {
 
                     const nowSeconds = Math.floor(Date.now() / 1000);
                     if (msgTimestamp > 0) {
-                        // Allow up to 180 seconds variance to tolerate server clock jitter
-                        if (Math.abs(nowSeconds - msgTimestamp) > 180 && (nowSeconds - msgTimestamp > 180)) continue;
-                        if (msgTimestamp < (botStartTime - 10)) continue;
+                        // Discard if older than 5 minutes (300s)
+                        if (nowSeconds - msgTimestamp > 300) continue;
+                        // Avoid historical sync from previous hours/days
+                        if (msgTimestamp < (botStartTime - 300)) continue;
                     }
 
                     // 3. Serialize message

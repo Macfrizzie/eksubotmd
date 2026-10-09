@@ -173,13 +173,22 @@ class AIEngine {
     isUserPaused(senderId) {
         if (!senderId) return false;
         const now = Date.now();
-        const digits = String(senderId).split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+        const cleanSender = String(senderId).trim();
+        const digits = cleanSender.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 
         for (const [key, item] of Object.entries(this.handoffs)) {
             const keyDigits = key.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
             const itemPhone = (item.phone || item.userPhone || '').replace(/[^0-9]/g, '');
-            const isMatch = (key === senderId || (digits && (keyDigits === digits || itemPhone === digits)));
-            if (isMatch) {
+            
+            const directMatch = (key === cleanSender || key.toLowerCase() === cleanSender.toLowerCase());
+            const phoneMatch = digits && digits.length >= 7 && (
+                keyDigits === digits || 
+                itemPhone === digits || 
+                (keyDigits.length >= 7 && (keyDigits.endsWith(digits) || digits.endsWith(keyDigits))) ||
+                (itemPhone.length >= 7 && (itemPhone.endsWith(digits) || digits.endsWith(itemPhone)))
+            );
+
+            if (directMatch || phoneMatch) {
                 // Auto-expire handoff pause after 20 minutes of inactivity so chats never stay frozen permanently
                 const pausedTime = item.pausedAt ? new Date(item.pausedAt).getTime() : (item.timestamp ? new Date(item.timestamp).getTime() : 0);
                 if (pausedTime && (now - pausedTime > 20 * 60 * 1000)) {
@@ -218,24 +227,43 @@ class AIEngine {
         const cleanTarget = String(target).trim();
         const digits = cleanTarget.replace(/[^0-9]/g, '');
 
+        let removed = false;
+
         // 1. Direct key match
         if (this.handoffs[cleanTarget]) {
             delete this.handoffs[cleanTarget];
-            this.saveHandoffs();
-            return true;
+            removed = true;
         }
 
         // 2. Flexible phone number / JID matching
         for (const [key, item] of Object.entries(this.handoffs)) {
             const keyDigits = key.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
             const itemPhone = (item.phone || item.userPhone || '').replace(/[^0-9]/g, '');
-            if (key === cleanTarget || (digits && (keyDigits === digits || itemPhone === digits))) {
+
+            const directMatch = key === cleanTarget || key.toLowerCase() === cleanTarget.toLowerCase();
+            const phoneMatch = digits && digits.length >= 7 && (
+                keyDigits === digits || 
+                itemPhone === digits || 
+                (keyDigits.length >= 7 && (keyDigits.endsWith(digits) || digits.endsWith(keyDigits))) ||
+                (itemPhone.length >= 7 && (itemPhone.endsWith(digits) || digits.endsWith(itemPhone)))
+            );
+
+            if (directMatch || phoneMatch) {
                 delete this.handoffs[key];
-                this.saveHandoffs();
-                return true;
+                removed = true;
             }
         }
-        return false;
+
+        if (removed) {
+            this.saveHandoffs();
+        }
+        return removed;
+    }
+
+    clearAllHandoffs() {
+        this.handoffs = {};
+        this.saveHandoffs();
+        return true;
     }
 
     getHandoffList() {

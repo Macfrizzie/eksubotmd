@@ -277,6 +277,11 @@ app.post('/api/handoff/resume/:id', (req, res) => {
     res.json({ success });
 });
 
+app.post('/api/handoff/resume-all', (req, res) => {
+    const success = aiEngine.clearAllHandoffs();
+    res.json({ success });
+});
+
 // 7.1 Unanswered Questions & Knowledge Gaps API
 app.get('/api/knowledge/unanswered', (req, res) => {
     res.json(aiEngine.getUnansweredQuestions());
