@@ -1,11 +1,55 @@
-const { jidNormalizedUser, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { jidNormalizedUser, downloadMediaMessage, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
 // Helper to download media safely
 const downloadMedia = async (m) => {
+    // 1. Try Baileys downloadMediaMessage
     try { 
-        return await downloadMediaMessage(m, 'buffer', {}, { logger: console }); 
-    } catch (e) { 
-        return null; 
+        const buffer = await downloadMediaMessage(
+            { key: m.key, message: m.message || (m.data && m.data.message) }, 
+            'buffer', 
+            {}, 
+            { logger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, trace: () => {} } }
+        );
+        if (buffer && Buffer.isBuffer(buffer) && buffer.length > 0) return buffer;
+    } catch (e) {}
+
+    // 2. Fallback stream extraction via downloadContentFromMessage
+    try {
+        const msg = m.message || (m.data && m.data.message);
+        if (!msg) return null;
+        
+        let mediaNode = null;
+        let typeName = null;
+        
+        if (msg.audioMessage) {
+            mediaNode = msg.audioMessage;
+            typeName = 'audio';
+        } else if (msg.imageMessage) {
+            mediaNode = msg.imageMessage;
+            typeName = 'image';
+        } else if (msg.videoMessage) {
+            mediaNode = msg.videoMessage;
+            typeName = 'video';
+        } else if (msg.documentMessage) {
+            mediaNode = msg.documentMessage;
+            typeName = 'document';
+        } else if (msg.stickerMessage) {
+            mediaNode = msg.stickerMessage;
+            typeName = 'sticker';
+        }
+
+        if (!mediaNode || !typeName) return null;
+
+        const stream = await downloadContentFromMessage(mediaNode, typeName);
+        let chunks = [];
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+        const finalBuffer = Buffer.concat(chunks);
+        return finalBuffer.length > 0 ? finalBuffer : null;
+    } catch (err) {
+        console.error('downloadMedia fallback error:', err?.message || err);
+        return null;
     }
 };
 

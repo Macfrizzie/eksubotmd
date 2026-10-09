@@ -204,7 +204,10 @@ Module({
         } catch (e) {}
 
         const audioBuffer = await m.download();
-        if (!audioBuffer) return;
+        if (!audioBuffer) {
+            await m.reply("⚠️ *Voice Note Notice:* Could not process the voice note. Please send your question as text.");
+            return;
+        }
 
         const senderName = (m.pushName && m.pushName !== 'User') ? m.pushName : (m.senderName || 'Friend');
         const mimeType = audioMsg.mimetype || 'audio/ogg; codecs=opus';
@@ -222,12 +225,13 @@ Module({
             if (result.handoff) {
                 const ownerJid = getGlobalOwnerJid(m.client);
                 if (ownerJid) {
+                    const cleanNumber = (m.userPhone || m.sender.split('@')[0].split(':')[0]).replace(/[^0-9]/g, '');
                     const alertMsg = `🚨 *Smart Human Handoff Alert (Voice Note)*\n\n` +
-                        `👤 *User:* @${m.sender.split('@')[0]} (${senderName})\n` +
+                        `👤 *User:* @${cleanNumber} (${senderName})\n` +
                         `📝 *Reason:* ${result.handoff.reason}\n\n` +
                         `⏸️ _AI paused for this user._\n` +
-                        `👉 To resume AI, send:\n` +
-                        `*.airesume ${m.sender.split('@')[0]}*`;
+                        `👉 *To resume:* Simply type *.airesume* directly inside their chat, or send:\n` +
+                        `*.airesume ${cleanNumber}*`;
 
                     await m.client.sendMessage(ownerJid, { text: alertMsg, mentions: [m.sender] });
                 }
@@ -235,6 +239,74 @@ Module({
         }
     } catch (err) {
         console.error('Audio message listener error:', err.message);
+    }
+});
+
+// 3. 🖼️ ACTIVE IMAGE / SCREENSHOT LISTENER
+Module({
+    on: 'imageMessage',
+    fromMe: false
+}, async (m) => {
+    try {
+        if (m.fromMe) return;
+
+        analytics.recordMessage(m.sender, false);
+
+        const kb = aiEngine.getKB();
+        const kwConfig = keywordEngine.getConfig();
+        if (kwConfig.standalone || !kb.enabled) return;
+        if (kb.dmOnly && m.isGroup) return;
+
+        if (aiEngine.isUserPaused(m.sender)) return;
+
+        const imgMsg = m.data?.message?.imageMessage;
+        if (!imgMsg) return;
+
+        // Visual indicator that bot is analyzing image
+        try {
+            await m.client.sendMessage(m.jid, { react: { text: "🔍", key: m.key } });
+            if (m.client?.sendPresenceUpdate) {
+                await m.client.sendPresenceUpdate('composing', m.jid);
+            }
+        } catch (e) {}
+
+        const imageBuffer = await m.download();
+        if (!imageBuffer) {
+            await m.reply("⚠️ *Image Notice:* Could not process the uploaded image. Please try resending it or ask your question in text.");
+            return;
+        }
+
+        const senderName = (m.pushName && m.pushName !== 'User') ? m.pushName : (m.senderName || 'Friend');
+        const mimeType = imgMsg.mimetype || 'image/jpeg';
+        const caption = m.text || imgMsg.caption || '';
+
+        const result = await aiEngine.processImageMessage(imageBuffer, mimeType, caption, m.sender, senderName);
+
+        if (result && result.reply) {
+            await m.reply(result.reply);
+            analytics.recordMessage(m.sender, true);
+            try {
+                await m.client.sendMessage(m.jid, { react: { text: "✅", key: m.key } });
+            } catch (e) {}
+
+            // Handoff alert if image inquiry needed human
+            if (result.handoff) {
+                const ownerJid = getGlobalOwnerJid(m.client);
+                if (ownerJid) {
+                    const cleanNumber = (m.userPhone || m.sender.split('@')[0].split(':')[0]).replace(/[^0-9]/g, '');
+                    const alertMsg = `🚨 *Smart Human Handoff Alert (Image Inquiry)*\n\n` +
+                        `👤 *User:* @${cleanNumber} (${senderName})\n` +
+                        `📝 *Reason:* ${result.handoff.reason}\n\n` +
+                        `⏸️ _AI paused for this user._\n` +
+                        `👉 *To resume:* Simply type *.airesume* directly inside their chat, or send:\n` +
+                        `*.airesume ${cleanNumber}*`;
+
+                    await m.client.sendMessage(ownerJid, { text: alertMsg, mentions: [m.sender] });
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Image message listener error:', err.message);
     }
 });
 

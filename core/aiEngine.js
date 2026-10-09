@@ -609,8 +609,9 @@ Rules: Answer concisely and completely. For lists/steps use bullet points. If no
         if (!this.kb.enabled) return null;
         if (this.isUserPaused(senderId)) return { isPaused: true };
 
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
+        const rawKeyString = process.env.GEMINI_API_KEY || '';
+        const apiKeys = rawKeyString.split(',').map(k => k.trim()).filter(Boolean);
+        if (apiKeys.length === 0) return { reply: "⚠️ *AI Notice:* GEMINI_API_KEY is not configured." };
 
         const base64Audio = audioBuffer.toString('base64');
         const cleanName = (senderName && senderName !== 'Friend' && senderName !== 'User' && senderName !== 'undefined') ? senderName.trim() : null;
@@ -632,7 +633,7 @@ FORMAT YOUR RESPONSE EXACTLY AS:
 
 💡 *Answer:* <your helpful answer${cleanName ? ` addressing ${cleanName}` : ''}>`;
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const cleanModelName = (this.kb.model || 'gemini-1.5-flash').replace(/^models\//, '').trim();
 
         const payload = {
             systemInstruction: { parts: [{ text: systemInstruction }] },
@@ -645,18 +646,43 @@ FORMAT YOUR RESPONSE EXACTLY AS:
             }],
             generationConfig: {
                 temperature: 0.6,
-                maxOutputTokens: 500
+                maxOutputTokens: 600
             }
         };
 
-        const startTime = Date.now();
-        const response = await this.queue.push(() => axios.post(url, payload, {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 30000
-        }));
+        await this.queue.waitForTokenBudget(800);
 
-        const rawText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!rawText) return null;
+        let lastError = null;
+        let rawText = null;
+        const startTime = Date.now();
+
+        for (let kIdx = 0; kIdx < apiKeys.length; kIdx++) {
+            const apiKey = apiKeys[(this._keyIndex || 0 + kIdx) % apiKeys.length];
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelName}:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await this.queue.push(() => axios.post(url, payload, {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 30000
+                }));
+                rawText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (rawText) break;
+            } catch (err) {
+                lastError = err;
+                const status = err.response?.status;
+                if (status === 429 || status === 503) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    continue;
+                }
+            }
+        }
+
+        if (!rawText) {
+            if (lastError?.response?.status === 429 || lastError?.message?.includes('429')) {
+                return { reply: "⚠️ *AI Notice:* High demand detected on voice processing service. Please try again in 1-2 minutes or send your question as text." };
+            }
+            return { reply: "⚠️ *AI Notice:* I couldn't transcribe the voice note clearly. Please send your question as text or try speaking closer to the mic." };
+        }
 
         const latencyMs = Date.now() - startTime;
         let needsHandoff = false;
@@ -681,6 +707,110 @@ FORMAT YOUR RESPONSE EXACTLY AS:
         return {
             reply: cleanText,
             handoff: needsHandoff ? { reason: handoffReason, query: "Voice Note" } : null
+        };
+    }
+
+    // --- 🖼️ WHATSAPP IMAGE / SCREENSHOT RECOGNITION & KB REPLY ---
+    async processImageMessage(imageBuffer, mimeType, caption, senderId, senderName) {
+        if (!this.kb.enabled) return null;
+        if (this.isUserPaused(senderId)) return { isPaused: true };
+
+        const rawKeyString = process.env.GEMINI_API_KEY || '';
+        const apiKeys = rawKeyString.split(',').map(k => k.trim()).filter(Boolean);
+        if (apiKeys.length === 0) return { reply: "⚠️ *AI Notice:* GEMINI_API_KEY is not configured." };
+
+        const base64Image = imageBuffer.toString('base64');
+        const cleanName = (senderName && senderName !== 'Friend' && senderName !== 'User' && senderName !== 'undefined') ? senderName.trim() : null;
+
+        const systemInstruction = `${this.kb.systemPrompt}
+
+USER'S NAME: ${cleanName || 'Friend'}
+=== KNOWLEDGE BASE DOCUMENTS ===
+${this.kb.entries.map(e => `[${e.title}]\n${e.content}`).join('\n\n')}
+================================
+
+INSTRUCTIONS FOR IMAGE / SCREENSHOT ANALYSIS:
+1. ${cleanName ? `Address the user as "${cleanName}".` : 'Be polite, clear, and reassuring.'}
+2. Carefully examine what is shown in the image (e.g. JAMB CAPS admission status, EKSU portal error, payment receipt, O'Level result, screening slip).
+3. If the user provided a caption or question, answer their question directly based on what is shown in the image and the Knowledge Base.
+4. If no caption was provided, explain what the screenshot shows, explain what their status means according to EKSU & JAMB guidelines, and tell them what exact next steps they should take.
+5. If the inquiry requires human staff intervention or cannot be resolved from the knowledge base, end your message with: [HANDOFF_NEEDED: Image inquiry requires staff review].`;
+
+        const cleanModelName = (this.kb.model || 'gemini-1.5-flash').replace(/^models\//, '').trim();
+        const userPrompt = caption ? caption.trim() : "Please examine this screenshot/image and explain what it means and what next steps I should take according to the EKSU and JAMB guidelines.";
+
+        const payload = {
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            contents: [{
+                role: 'user',
+                parts: [
+                    { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Image } },
+                    { text: userPrompt }
+                ]
+            }],
+            generationConfig: {
+                temperature: 0.4,
+                maxOutputTokens: 800
+            }
+        };
+
+        await this.queue.waitForTokenBudget(1000);
+
+        let lastError = null;
+        let rawText = null;
+        const startTime = Date.now();
+
+        for (let kIdx = 0; kIdx < apiKeys.length; kIdx++) {
+            const apiKey = apiKeys[(this._keyIndex || 0 + kIdx) % apiKeys.length];
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelName}:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await this.queue.push(() => axios.post(url, payload, {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 30000
+                }));
+                rawText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (rawText) break;
+            } catch (err) {
+                lastError = err;
+                const status = err.response?.status;
+                if (status === 429 || status === 503) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    continue;
+                }
+            }
+        }
+
+        if (!rawText) {
+            if (lastError?.response?.status === 429 || lastError?.message?.includes('429')) {
+                return { reply: "⚠️ *AI Notice:* High demand detected on image analysis service. Please try again in 1-2 minutes or send your question as text." };
+            }
+            return { reply: "⚠️ *AI Notice:* Unable to analyze the image right now. Please describe your question in text or try sending it again." };
+        }
+
+        const latencyMs = Date.now() - startTime;
+        let needsHandoff = false;
+        let handoffReason = 'Screenshot inquiry requires staff attention';
+        let cleanText = rawText;
+
+        const handoffMatch = rawText.match(/\[HANDOFF_NEEDED(?::\s*([^\]]+))?\]/i);
+        if (handoffMatch) {
+            needsHandoff = true;
+            if (handoffMatch[1]) handoffReason = handoffMatch[1].trim();
+            cleanText = rawText.replace(/\[HANDOFF_NEEDED(?::\s*[^\]]+)?\]/gi, '').trim();
+            this.pauseAIForUser(senderId, handoffReason, caption || "Screenshot Inquiry", senderName);
+        }
+
+        analytics.recordAIUsage({
+            inputTokens: 500,
+            outputTokens: Math.ceil(cleanText.length / 4),
+            latencyMs,
+            isImage: true
+        });
+
+        return {
+            reply: cleanText,
+            handoff: needsHandoff ? { reason: handoffReason, query: caption || "Image Upload" } : null
         };
     }
 
