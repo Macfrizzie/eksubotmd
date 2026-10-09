@@ -277,6 +277,21 @@ app.post('/api/handoff/resume/:id', (req, res) => {
     res.json({ success });
 });
 
+// 7.1 Unanswered Questions & Knowledge Gaps API
+app.get('/api/knowledge/unanswered', (req, res) => {
+    res.json(aiEngine.getUnansweredQuestions());
+});
+
+app.delete('/api/knowledge/unanswered/:id', (req, res) => {
+    const success = aiEngine.deleteUnansweredQuestion(req.params.id);
+    res.json({ success });
+});
+
+app.delete('/api/knowledge/unanswered', (req, res) => {
+    const success = aiEngine.clearUnansweredQuestions();
+    res.json({ success });
+});
+
 // --- 8. KEYWORD AUTO-REPLY RULES API ---
 app.get('/api/keywords', (req, res) => {
     res.json(keywordEngine.getState());

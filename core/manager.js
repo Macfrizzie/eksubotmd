@@ -32,7 +32,31 @@ async function serialize(sock, m) {
     m.id = key.id;
     m.isGroup = key.remoteJid ? key.remoteJid.endsWith('@g.us') : false;
     m.jid = key.remoteJid;
-    m.sender = jidNormalizedUser(key.fromMe ? device : (m.key.participant || m.key.remoteJid || ''));
+
+    // Prioritize real phone JID (@s.whatsapp.net) over LID
+    let rawSender = '';
+    if (key.fromMe) {
+        rawSender = device;
+    } else if (m.isGroup) {
+        if (key.participant && key.participant.endsWith('@s.whatsapp.net')) {
+            rawSender = key.participant;
+        } else if (m.participant && m.participant.endsWith('@s.whatsapp.net')) {
+            rawSender = m.participant;
+        } else {
+            rawSender = key.participant || m.participant || key.remoteJid || '';
+        }
+    } else {
+        if (key.remoteJid && key.remoteJid.endsWith('@s.whatsapp.net')) {
+            rawSender = key.remoteJid;
+        } else if (key.participant && key.participant.endsWith('@s.whatsapp.net')) {
+            rawSender = key.participant;
+        } else {
+            rawSender = key.remoteJid || key.participant || '';
+        }
+    }
+
+    m.sender = jidNormalizedUser(rawSender);
+    m.userPhone = m.sender.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
     m.fromMe = !!key.fromMe;
     m.pushName = m.pushName || "User";
     m.data = m;

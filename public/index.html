@@ -797,7 +797,7 @@
             </div>
         </section>
 
-        <!-- TAB 6: SMART HUMAN HANDOFF QUEUE -->
+        <!-- TAB 6: SMART HUMAN HANDOFF QUEUE & UNANSWERED QUESTIONS -->
         <section id="tab-handoff" class="tab-content hidden space-y-6">
             <div class="flex items-center justify-between">
                 <div>
@@ -817,7 +817,7 @@
                 <i data-lucide="info" class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5"></i>
                 <div class="space-y-1">
                     <p class="font-semibold text-amber-300">How Agent Mode Works:</p>
-                    <p>When an inquiry cannot be answered by the Knowledge Base, the bot pauses auto-replying to that user and sends a WhatsApp alert to the bot owner. You can chat with them directly, and when you are done, click <strong>Resume AI</strong> below (or send <code>.airesume &lt;number&gt;</code> in WhatsApp) to hand the chat back to the AI assistant.</p>
+                    <p>When an inquiry cannot be answered by the Knowledge Base, the bot pauses auto-replying to that user and alerts you. You can chat with them directly on WhatsApp, and when you are done, simply type <code>.airesume</code> directly inside their chat (or click <strong>Resume AI</strong> below) to continue AI auto-replies immediately.</p>
                 </div>
             </div>
 
@@ -825,6 +825,34 @@
             <div id="handoffListContainer" class="space-y-3">
                 <div class="p-8 text-center text-slate-500 border border-slate-800 rounded-xl bg-slate-900/50">
                     Loading handoff queue...
+                </div>
+            </div>
+
+            <!-- UNANSWERED QUESTIONS & KNOWLEDGE GAPS -->
+            <div class="pt-6 border-t border-slate-800 space-y-4">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                            <i data-lucide="help-circle" class="w-5 h-5 text-purple-400"></i>
+                            Unanswered Questions & Knowledge Gaps
+                            <span id="unansweredBadgeCount" class="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded-full border border-purple-500/30">0</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Student inquiries that had no answer in your Knowledge Base. Copy them to write answers or click "Add to KB" to create documents.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="copyAllUnansweredQuestions()" id="btnCopyAllUnanswered" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow shadow-purple-600/30">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy All Questions
+                        </button>
+                        <button onclick="clearAllUnansweredQuestions()" class="px-3 py-1.5 bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 hover:border-rose-700/50 transition">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+
+                <div id="unansweredQuestionsContainer" class="space-y-3">
+                    <div class="p-8 text-center text-slate-500 border border-slate-800 rounded-xl bg-slate-900/50">
+                        Loading unanswered questions...
+                    </div>
                 </div>
             </div>
         </section>
@@ -1830,46 +1858,49 @@
                             <div class="text-xs text-slate-500">The AI assistant is actively handling all incoming WhatsApp chats.</div>
                         </div>
                     `;
-                    lucide.createIcons();
-                    return;
+                } else {
+                    list.forEach(item => {
+                        const phone = item.phone || item.userPhone || String(item.id).split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+                        const name = (item.name && !item.name.startsWith('+')) ? item.name : (item.senderName && !item.senderName.startsWith('+') ? item.senderName : ('+' + phone));
+                        const dateStr = (item.pausedAt || item.timestamp) ? new Date(item.pausedAt || item.timestamp).toLocaleString() : 'Just now';
+                        const lastQuery = item.lastQuery || item.query || 'Requested human support';
+                        const card = document.createElement('div');
+                        card.className = 'bg-slate-900 border border-amber-500/30 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4';
+                        card.innerHTML = `
+                            <div class="space-y-1.5 flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-sm text-white">${escapeHtml(name)}</span>
+                                    <span class="font-mono text-xs text-emerald-400 font-semibold">(+${escapeHtml(phone)})</span>
+                                    <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold uppercase">Human Attention Needed</span>
+                                </div>
+                                <div class="text-xs text-slate-300">
+                                    <span class="text-slate-500 font-mono">Last Inquiry:</span> "${escapeHtml(lastQuery)}"
+                                </div>
+                                <div class="text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                                    <span>Paused: ${dateStr}</span>
+                                    <span>•</span>
+                                    <span>Reason: ${escapeHtml(item.reason || 'KB Miss')}</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
+                                <a href="https://wa.me/${phone}" target="_blank" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition">
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Open WhatsApp
+                                </a>
+                                <button onclick="resumeUserAI('${escapeHtml(item.id)}')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow shadow-emerald-600/30">
+                                    <i data-lucide="play" class="w-3.5 h-3.5"></i> Resume AI
+                                </button>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
                 }
-
-                list.forEach(item => {
-                    const phone = item.id.split('@')[0];
-                    const dateStr = item.pausedAt ? new Date(item.pausedAt).toLocaleString() : 'Just now';
-                    const card = document.createElement('div');
-                    card.className = 'bg-slate-900 border border-amber-500/30 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4';
-                    card.innerHTML = `
-                        <div class="space-y-1.5 flex-1 min-w-0">
-                            <div class="flex items-center gap-2">
-                                <span class="font-bold text-sm text-white">${escapeHtml(item.name || '+' + phone)}</span>
-                                <span class="font-mono text-xs text-slate-400">(+${phone})</span>
-                                <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold uppercase">Human Attention Needed</span>
-                            </div>
-                            <div class="text-xs text-slate-300">
-                                <span class="text-slate-500 font-mono">Last Inquiry:</span> "${escapeHtml(item.lastQuery || 'Requested human support')}"
-                            </div>
-                            <div class="text-[11px] text-slate-500 font-mono flex items-center gap-2">
-                                <span>Paused: ${dateStr}</span>
-                                <span>•</span>
-                                <span>Reason: ${escapeHtml(item.reason || 'KB Miss')}</span>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
-                            <a href="https://wa.me/${phone}" target="_blank" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition">
-                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Open WhatsApp
-                            </a>
-                            <button onclick="resumeUserAI('${escapeHtml(item.id)}')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow shadow-emerald-600/30">
-                                <i data-lucide="play" class="w-3.5 h-3.5"></i> Resume AI
-                            </button>
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
                 lucide.createIcons();
             } catch (err) {
                 console.error('Failed to load handoff queue:', err);
             }
+
+            // Always load unanswered questions alongside handoff queue
+            loadUnansweredQuestions();
         }
 
         async function resumeUserAI(userId) {
@@ -1883,6 +1914,168 @@
                 }
             } catch (err) {
                 alert('Error resuming AI: ' + err.message);
+            }
+        }
+
+        // --- UNANSWERED QUESTIONS MANAGER ---
+        let currentUnansweredList = [];
+
+        async function loadUnansweredQuestions() {
+            try {
+                const res = await fetch('/api/knowledge/unanswered');
+                const list = await res.json();
+                currentUnansweredList = Array.isArray(list) ? list : [];
+
+                const badge = document.getElementById('unansweredBadgeCount');
+                if (badge) {
+                    badge.textContent = currentUnansweredList.length;
+                }
+
+                const container = document.getElementById('unansweredQuestionsContainer');
+                if (!container) return;
+                container.innerHTML = '';
+
+                if (currentUnansweredList.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-8 text-center border border-slate-800 rounded-xl bg-slate-900/40 text-slate-400 space-y-2">
+                            <i data-lucide="sparkles" class="w-8 h-8 text-purple-400 mx-auto"></i>
+                            <div class="text-sm font-semibold text-slate-300">No unanswered questions recorded!</div>
+                            <div class="text-xs text-slate-500">Every student question was either answered by your Knowledge Base or handled.</div>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                currentUnansweredList.forEach(q => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-slate-900 border border-slate-800 hover:border-purple-500/40 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition';
+                    const timeAgo = q.lastAsked ? new Date(q.lastAsked).toLocaleString() : 'Recently';
+                    const askBadge = q.askCount > 1 
+                        ? `<span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold">Asked ${q.askCount}x</span>`
+                        : `<span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px]">1 inquiry</span>`;
+
+                    const escapedQuestion = escapeHtml(q.question);
+                    const safeAttrQuestion = escapedQuestion.replace(/"/g, '&quot;');
+
+                    card.innerHTML = `
+                        <div class="space-y-1.5 flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-bold text-sm text-white">${escapedQuestion}</span>
+                                ${askBadge}
+                            </div>
+                            <div class="text-xs text-slate-400 flex items-center gap-2.5 flex-wrap font-mono">
+                                <span class="text-emerald-400 font-semibold">+${escapeHtml(q.senderPhone || 'Unknown')}</span>
+                                <span>•</span>
+                                <span class="text-slate-500">${timeAgo}</span>
+                                <span>•</span>
+                                <span class="text-amber-400/90 text-[11px] font-sans">${escapeHtml(q.reason || 'Missing from KB')}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
+                            <button onclick="copySingleQuestion('${safeAttrQuestion}')" title="Copy Question text" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 border border-slate-700 transition">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy
+                            </button>
+                            <button onclick="addQuestionToKB('${safeAttrQuestion}', '${q.id}')" title="Add as Knowledge Base Document" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow shadow-emerald-600/30">
+                                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add to KB
+                            </button>
+                            <button onclick="deleteUnansweredQuestion('${q.id}')" title="Delete question from list" class="p-1.5 text-rose-400 hover:text-rose-300 rounded hover:bg-slate-800 transition">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+                lucide.createIcons();
+            } catch (err) {
+                console.error('Failed to load unanswered questions:', err);
+            }
+        }
+
+        async function copySingleQuestion(text) {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const temp = document.createElement('textarea');
+                    temp.value = text;
+                    document.body.appendChild(temp);
+                    temp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(temp);
+                }
+                alert(`📋 Copied Question to Clipboard:\n\n"${text}"`);
+            } catch (e) {
+                prompt('Copy question manually:', text);
+            }
+        }
+
+        async function copyAllUnansweredQuestions() {
+            if (!currentUnansweredList || currentUnansweredList.length === 0) {
+                return alert('No unanswered questions to copy!');
+            }
+
+            let markdown = '# ❓ EKSU BOT - UNANSWERED STUDENT QUESTIONS (KNOWLEDGE GAPS)\n\n';
+            currentUnansweredList.forEach((q, idx) => {
+                const countStr = q.askCount > 1 ? ` (Asked ${q.askCount} times)` : '';
+                markdown += `${idx + 1}. "${q.question}"${countStr} — Phone: +${q.senderPhone || 'Unknown'}\n`;
+            });
+
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(markdown);
+                } else {
+                    const temp = document.createElement('textarea');
+                    temp.value = markdown;
+                    document.body.appendChild(temp);
+                    temp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(temp);
+                }
+                alert(`📋 Successfully copied all ${currentUnansweredList.length} questions to your clipboard!\n\nYou can now paste them into ChatGPT, Gemini, or a document to write answers.`);
+            } catch (e) {
+                prompt('Copy all questions manually:', markdown);
+            }
+        }
+
+        function addQuestionToKB(questionText, questionId) {
+            switchTab('ai');
+            openAddEntryModal();
+            const titleField = document.getElementById('modalEntryTitle');
+            const contentField = document.getElementById('modalEntryContent');
+            if (titleField) {
+                titleField.value = `FAQ: ${questionText.slice(0, 50)}`;
+            }
+            if (contentField) {
+                contentField.value = `Question: ${questionText}\n\nAnswer: \n`;
+                contentField.focus();
+            }
+        }
+
+        async function deleteUnansweredQuestion(id) {
+            try {
+                const res = await fetch(`/api/knowledge/unanswered/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    loadUnansweredQuestions();
+                } else {
+                    alert('Could not delete question');
+                }
+            } catch (err) {
+                alert('Error deleting question: ' + err.message);
+            }
+        }
+
+        async function clearAllUnansweredQuestions() {
+            if (!confirm('Are you sure you want to clear all unanswered questions?')) return;
+            try {
+                const res = await fetch('/api/knowledge/unanswered', { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    loadUnansweredQuestions();
+                }
+            } catch (err) {
+                alert('Error clearing questions: ' + err.message);
             }
         }
 

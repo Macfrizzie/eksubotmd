@@ -138,13 +138,14 @@ Module({
                 if (result.handoff) {
                     const ownerJid = getGlobalOwnerJid(m.client);
                     if (ownerJid) {
+                        const cleanNumber = m.userPhone || m.sender.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
                         const alertMsg = `🚨 *Smart Human Handoff Alert*\n\n` +
-                            `👤 *User:* @${m.sender.split('@')[0]} (${senderName})\n` +
+                            `👤 *User:* +${cleanNumber} (${senderName})\n` +
                             `❓ *Question:* "${result.handoff.query}"\n` +
                             `📝 *Reason:* ${result.handoff.reason}\n\n` +
                             `⏸️ _AI paused for this user._\n` +
-                            `👉 To resume AI after you reply, send:\n` +
-                            `*.airesume ${m.sender.split('@')[0]}*`;
+                            `👉 *To resume:* Simply type *.airesume* directly inside their chat, or send:\n` +
+                            `*.airesume ${cleanNumber}*`;
 
                         await m.client.sendMessage(ownerJid, {
                             text: alertMsg,
@@ -254,48 +255,78 @@ Module({
     }
 });
 
-// 4. SMART HANDOFF & GLOBAL RESUME: .airesume [user]
+// 4. SMART HANDOFF & RESUME: .airesume [user]
 Module({
     pattern: "airesume ?(.*)",
     fromMe: true,
-    desc: "Resume AI auto-replies (globally or for a specific user)",
+    desc: "Resume AI auto-replies for this chat, a specific user, or globally",
     type: "system"
 }, async (m, match) => {
-    const input = match[1] || m.reply_message?.sender;
-    if (!input || !input.trim()) {
-        aiEngine.saveKB({ enabled: true });
-        return m.reply("🟢 *AI Auto-Responder Resumed Globally!*\nThe bot is now answering incoming WhatsApp messages using the Knowledge Base.");
+    let target = (match[1] || '').trim();
+
+    // 1. If quoted message, target the quoted user
+    if (!target && m.reply_message?.sender) {
+        target = m.reply_message.sender;
     }
 
-    const clean = input.replace(/[^0-9]/g, '');
-    const targetJid = clean + '@s.whatsapp.net';
-
-    const resumed = aiEngine.resumeAIForUser(targetJid);
-    if (resumed) {
-        m.reply(`✅ *AI Resumed*: The bot will now answer messages from @${clean} automatically.`, { mentions: [targetJid] });
-    } else {
-        m.reply(`ℹ️ User @${clean} was not paused in Human Handoff mode.`, { mentions: [targetJid] });
+    // 2. If typed directly inside a 1-on-1 private user chat, target this chat!
+    const ownerJid = getGlobalOwnerJid(m.client);
+    if (!target && !m.isGroup && m.jid && !m.jid.includes('status@broadcast')) {
+        if (m.jid !== ownerJid) {
+            target = m.jid;
+        }
     }
+
+    // 3. If a target chat/user was identified:
+    if (target) {
+        const cleanNumber = target.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+        const resumed = aiEngine.resumeAIForUser(target);
+        if (resumed) {
+            return m.reply(`✅ *AI Auto-Reply Resumed!*\nThe bot will now answer messages from this chat (+${cleanNumber}) automatically.`, {
+                mentions: [target.includes('@') ? target : (cleanNumber + '@s.whatsapp.net')]
+            });
+        } else {
+            aiEngine.saveKB({ enabled: true });
+            return m.reply(`✅ *AI Active for this chat!*\nChat was not in paused state. AI auto-reply is ready and active.`);
+        }
+    }
+
+    // 4. If sent with no args in group or owner note-to-self, resume globally
+    aiEngine.saveKB({ enabled: true });
+    return m.reply("🟢 *AI Auto-Responder Resumed Globally!*\nThe bot is now answering incoming WhatsApp messages using the Knowledge Base.");
 });
 
-// 5. SMART HANDOFF & GLOBAL PAUSE: .aipause [user]
+// 5. SMART HANDOFF & PAUSE: .aipause [user]
 Module({
     pattern: "aipause ?(.*)",
     fromMe: true,
-    desc: "Pause AI auto-replies (globally or for a specific user)",
+    desc: "Pause AI auto-replies for this chat, a specific user, or globally",
     type: "system"
 }, async (m, match) => {
-    const input = match[1] || m.reply_message?.sender;
-    if (!input || !input.trim()) {
-        aiEngine.saveKB({ enabled: false });
-        return m.reply("⏸️ *AI Auto-Responder Paused Globally!*\nThe bot has stopped replying to incoming messages.\nSend *.airesume* or *.aion* to reactivate anytime.");
+    let target = (match[1] || '').trim();
+
+    if (!target && m.reply_message?.sender) {
+        target = m.reply_message.sender;
     }
 
-    const clean = input.replace(/[^0-9]/g, '');
-    const targetJid = clean + '@s.whatsapp.net';
+    const ownerJid = getGlobalOwnerJid(m.client);
+    if (!target && !m.isGroup && m.jid && !m.jid.includes('status@broadcast')) {
+        if (m.jid !== ownerJid) {
+            target = m.jid;
+        }
+    }
 
-    aiEngine.pauseAIForUser(targetJid, 'Manually paused by owner', 'Manual Chat', 'User');
-    m.reply(`⏸️ *AI Paused*: AI auto-replies are paused for @${clean}. You can chat manually.\nSend *.airesume ${clean}* when finished.`, { mentions: [targetJid] });
+    if (target) {
+        const cleanNumber = target.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+        const targetJid = target.includes('@') ? target : (cleanNumber + '@s.whatsapp.net');
+        aiEngine.pauseAIForUser(targetJid, 'Manually paused by owner inside chat', 'Manual Chat', m.pushName || 'User');
+        return m.reply(`⏸️ *AI Paused for this chat!*\nThe bot stopped auto-replying to +${cleanNumber}. You can chat manually.\n👉 Simply send *.airesume* inside this chat whenever you are done.`, {
+            mentions: [targetJid]
+        });
+    }
+
+    aiEngine.saveKB({ enabled: false });
+    return m.reply("⏸️ *AI Auto-Responder Paused Globally!*\nThe bot has stopped replying to incoming messages.\nSend *.airesume* or *.aion* to reactivate anytime.");
 });
 
 // 6. VIEW ACTIVE HANDOFFS: .aihandoffs

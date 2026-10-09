@@ -6,6 +6,7 @@ const analytics = require('./analytics');
 const KB_FILE = path.join(__dirname, '../knowledge_base.json');
 const CONV_FILE = path.join(__dirname, '../conversations.json');
 const HANDOFF_FILE = path.join(__dirname, '../handoffs.json');
+const UNANSWERED_FILE = path.join(__dirname, '../unanswered_questions.json');
 
 const DEFAULT_KB = {
     enabled: true,
@@ -105,11 +106,13 @@ class AIEngine {
     constructor() {
         this.conversations = {};
         this.handoffs = {};
+        this.unansweredQuestions = [];
         this.responseCache = new Map();
         this.queue = new AsyncAIQueue(1, 1800); // Serialize requests with 1.8s gap to stay under TPM
         this.loadKB();
         this.loadConversations();
         this.loadHandoffs();
+        this.loadUnansweredQuestions();
     }
 
     loadKB() {
@@ -171,35 +174,159 @@ class AIEngine {
 
     // --- SMART HUMAN HANDOFF MANAGEMENT ---
     isUserPaused(senderId) {
-        return !!this.handoffs[senderId];
+        if (!senderId) return false;
+        if (this.handoffs[senderId]) return true;
+        const digits = String(senderId).split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+        if (!digits) return false;
+        for (const [key, item] of Object.entries(this.handoffs)) {
+            const keyDigits = key.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+            const itemPhone = (item.phone || item.userPhone || '').replace(/[^0-9]/g, '');
+            if (keyDigits === digits || itemPhone === digits) {
+                return true;
+            }
+        }
+        return false;
     }
 
     pauseAIForUser(senderId, reason, query, senderName) {
+        const cleanPhone = String(senderId || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+        const nowIso = new Date().toISOString();
         this.handoffs[senderId] = {
+            id: senderId,
+            senderId,
+            phone: cleanPhone,
+            userPhone: cleanPhone,
             reason: reason || 'Requested human assistance',
             query: query || '',
+            lastQuery: query || '',
+            name: (senderName && senderName !== 'User') ? senderName : ('+' + cleanPhone),
             senderName: senderName || 'User',
-            timestamp: new Date().toISOString()
+            pausedAt: nowIso,
+            timestamp: nowIso
         };
         this.saveHandoffs();
         analytics.recordHandoff();
     }
 
-    resumeAIForUser(senderId) {
-        if (this.handoffs[senderId]) {
-            delete this.handoffs[senderId];
+    resumeAIForUser(target) {
+        if (!target) return false;
+        const cleanTarget = String(target).trim();
+        const digits = cleanTarget.replace(/[^0-9]/g, '');
+
+        // 1. Direct key match
+        if (this.handoffs[cleanTarget]) {
+            delete this.handoffs[cleanTarget];
             this.saveHandoffs();
             return true;
+        }
+
+        // 2. Flexible phone number / JID matching
+        for (const [key, item] of Object.entries(this.handoffs)) {
+            const keyDigits = key.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+            const itemPhone = (item.phone || item.userPhone || '').replace(/[^0-9]/g, '');
+            if (key === cleanTarget || (digits && (keyDigits === digits || itemPhone === digits))) {
+                delete this.handoffs[key];
+                this.saveHandoffs();
+                return true;
+            }
         }
         return false;
     }
 
     getHandoffList() {
-        return Object.entries(this.handoffs).map(([id, info]) => ({
-            id,
-            userPhone: id.split('@')[0],
-            ...info
-        }));
+        return Object.entries(this.handoffs).map(([id, info]) => {
+            const rawPhone = info.phone || info.userPhone || id.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+            return {
+                id,
+                senderId: id,
+                phone: rawPhone,
+                userPhone: rawPhone,
+                name: info.name || info.senderName || ('+' + rawPhone),
+                senderName: info.senderName || info.name || ('+' + rawPhone),
+                query: info.query || info.lastQuery || '',
+                lastQuery: info.lastQuery || info.query || '',
+                reason: info.reason || 'Requested human assistance',
+                pausedAt: info.pausedAt || info.timestamp || new Date().toISOString(),
+                timestamp: info.timestamp || info.pausedAt || new Date().toISOString()
+            };
+        });
+    }
+
+    // --- UNANSWERED QUESTIONS TRACKER ---
+    loadUnansweredQuestions() {
+        try {
+            if (fs.existsSync(UNANSWERED_FILE)) {
+                this.unansweredQuestions = JSON.parse(fs.readFileSync(UNANSWERED_FILE, 'utf8')) || [];
+            } else {
+                this.unansweredQuestions = [];
+            }
+        } catch (e) {
+            this.unansweredQuestions = [];
+        }
+    }
+
+    saveUnansweredQuestions() {
+        try {
+            fs.writeFileSync(UNANSWERED_FILE, JSON.stringify(this.unansweredQuestions, null, 2), 'utf8');
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    recordUnansweredQuestion(query, reason, senderId, senderName) {
+        if (!query || typeof query !== 'string') return;
+        const cleanQuery = query.trim();
+        if (cleanQuery.length < 3) return;
+
+        const phone = String(senderId || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+        const normalized = cleanQuery.toLowerCase().replace(/[^\w\s]/g, '').trim();
+
+        const existing = this.unansweredQuestions.find(item => {
+            const itemNorm = (item.question || '').toLowerCase().replace(/[^\w\s]/g, '').trim();
+            return itemNorm === normalized;
+        });
+
+        if (existing) {
+            existing.askCount = (existing.askCount || 1) + 1;
+            existing.lastAsked = new Date().toISOString();
+            if (phone) existing.senderPhone = phone;
+            if (senderName && senderName !== 'User') existing.senderName = senderName;
+            if (reason) existing.reason = reason;
+        } else {
+            this.unansweredQuestions.unshift({
+                id: 'uq_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+                question: cleanQuery,
+                reason: reason || 'Not found in knowledge base',
+                senderPhone: phone || 'Unknown',
+                senderName: senderName || 'User',
+                askCount: 1,
+                firstAsked: new Date().toISOString(),
+                lastAsked: new Date().toISOString()
+            });
+
+            if (this.unansweredQuestions.length > 200) {
+                this.unansweredQuestions.pop();
+            }
+        }
+        this.saveUnansweredQuestions();
+    }
+
+    getUnansweredQuestions() {
+        return this.unansweredQuestions || [];
+    }
+
+    deleteUnansweredQuestion(id) {
+        const initialLen = this.unansweredQuestions.length;
+        this.unansweredQuestions = this.unansweredQuestions.filter(q => q.id !== id);
+        this.saveUnansweredQuestions();
+        return this.unansweredQuestions.length < initialLen;
+    }
+
+    clearUnansweredQuestions() {
+        this.unansweredQuestions = [];
+        this.saveUnansweredQuestions();
+        return true;
     }
 
     getKB() {
@@ -418,6 +545,7 @@ Rules: Answer concisely and completely. For lists/steps use bullet points. If no
                     });
                 } else {
                     this.pauseAIForUser(senderId, handoffReason, cleanQuery, senderName);
+                    this.recordUnansweredQuestion(cleanQuery, handoffReason, senderId, senderName);
                 }
             }
 
