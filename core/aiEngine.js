@@ -68,12 +68,9 @@ class AsyncAIQueue {
     }
 
     async waitForTokenBudget(estimatedTokens) {
-        while (this._usedTokensInLastMinute() + estimatedTokens > TOKEN_BUDGET_PER_MINUTE) {
-            const oldest = this.tokenWindow[0];
-            if (!oldest) break;
-            const waitMs = Math.max(0, (oldest.ts + 60000) - Date.now()) + 200;
-            console.warn(`⏳ AI token budget near limit. Waiting ${Math.ceil(waitMs/1000)}s before next request...`);
-            await new Promise(r => setTimeout(r, waitMs));
+        // Light pacer: gently space rapid requests without freezing the queue
+        if (this._usedTokensInLastMinute() > 120000) {
+            await new Promise(r => setTimeout(r, 1200));
         }
     }
 
@@ -175,13 +172,21 @@ class AIEngine {
     // --- SMART HUMAN HANDOFF MANAGEMENT ---
     isUserPaused(senderId) {
         if (!senderId) return false;
-        if (this.handoffs[senderId]) return true;
+        const now = Date.now();
         const digits = String(senderId).split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
-        if (!digits) return false;
+
         for (const [key, item] of Object.entries(this.handoffs)) {
             const keyDigits = key.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
             const itemPhone = (item.phone || item.userPhone || '').replace(/[^0-9]/g, '');
-            if (keyDigits === digits || itemPhone === digits) {
+            const isMatch = (key === senderId || (digits && (keyDigits === digits || itemPhone === digits)));
+            if (isMatch) {
+                // Auto-expire handoff pause after 20 minutes of inactivity so chats never stay frozen permanently
+                const pausedTime = item.pausedAt ? new Date(item.pausedAt).getTime() : (item.timestamp ? new Date(item.timestamp).getTime() : 0);
+                if (pausedTime && (now - pausedTime > 20 * 60 * 1000)) {
+                    delete this.handoffs[key];
+                    this.saveHandoffs();
+                    return false;
+                }
                 return true;
             }
         }
@@ -544,8 +549,14 @@ Rules: Answer concisely and completely. For lists/steps use bullet points. If no
                         expiresAt: Date.now() + 60 * 60 * 1000
                     });
                 } else {
-                    this.pauseAIForUser(senderId, handoffReason, cleanQuery, senderName);
+                    // Record question into the Unanswered Questions tracker for owner to review and add to KB
                     this.recordUnansweredQuestion(cleanQuery, handoffReason, senderId, senderName);
+
+                    // Only pause the chat if the user explicitly requested human assistance, so subsequent known questions still get answered
+                    const explicitHumanRequest = /\b(human|agent|admin|live agent|representative|call someone|talk to someone|speak to someone)\b/i.test(cleanQuery);
+                    if (explicitHumanRequest) {
+                        this.pauseAIForUser(senderId, handoffReason, cleanQuery, senderName);
+                    }
                 }
             }
 
@@ -555,6 +566,12 @@ Rules: Answer concisely and completely. For lists/steps use bullet points. If no
             };
         } catch (error) {
             console.error('AI Generation Error:', error.message);
+            if (error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('Resource has been exhausted')) {
+                return { reply: "⚠️ *AI Notice:* High demand detected on AI server. Please try again in 1-2 minutes or type *.menu* for bot commands." };
+            }
+            if (error.message?.includes('404') || error.message?.includes('not found')) {
+                return { reply: "⚠️ *AI Notice:* Configured AI model was not found. Please verify your model name in the web panel." };
+            }
             return { reply: isTest ? `Error: ${error.message}` : null };
         }
     }

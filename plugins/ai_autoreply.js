@@ -130,8 +130,14 @@ Module({
             const result = await aiEngine.generateReply(clean, m.sender, senderName);
 
             if (result && result.reply) {
-                await new Promise(r => setTimeout(r, 1200 + Math.random() * 1500));
-                await m.reply(result.reply);
+                try {
+                    await m.reply(result.reply);
+                } catch (replyErr) {
+                    console.warn('⚠️ [AI AutoReply] m.reply fallback triggered:', replyErr.message);
+                    if (m.client?.sendMessage) {
+                        await m.client.sendMessage(m.jid, { text: result.reply });
+                    }
+                }
                 analytics.recordMessage(m.sender, true);
 
                 // Handle Smart Human Handoff Alert to Owner

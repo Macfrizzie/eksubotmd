@@ -95,6 +95,10 @@
             <button onclick="switchTab('ai')" id="tab-btn-ai" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="sparkles" class="w-4 h-4"></i> AI Knowledge Base
             </button>
+            <button onclick="switchTab('unanswered')" id="tab-btn-unanswered" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="help-circle" class="w-4 h-4 text-purple-400"></i> Unanswered Questions
+                <span id="unansweredNavBadge" class="px-1.5 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] rounded-full border border-purple-500/30">0</span>
+            </button>
             <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics
             </button>
@@ -827,32 +831,46 @@
                     Loading handoff queue...
                 </div>
             </div>
+        </section>
 
-            <!-- UNANSWERED QUESTIONS & KNOWLEDGE GAPS -->
-            <div class="pt-6 border-t border-slate-800 space-y-4">
-                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div>
-                        <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
-                            <i data-lucide="help-circle" class="w-5 h-5 text-purple-400"></i>
-                            Unanswered Questions & Knowledge Gaps
-                            <span id="unansweredBadgeCount" class="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded-full border border-purple-500/30">0</span>
-                        </h3>
-                        <p class="text-xs text-slate-400">Student inquiries that had no answer in your Knowledge Base. Copy them to write answers or click "Add to KB" to create documents.</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button onclick="copyAllUnansweredQuestions()" id="btnCopyAllUnanswered" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow shadow-purple-600/30">
-                            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy All Questions
-                        </button>
-                        <button onclick="clearAllUnansweredQuestions()" class="px-3 py-1.5 bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 hover:border-rose-700/50 transition">
-                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All
-                        </button>
-                    </div>
+        <!-- DEDICATED TAB: UNANSWERED QUESTIONS & KNOWLEDGE GAPS -->
+        <section id="tab-unanswered" class="tab-content hidden space-y-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                        <i data-lucide="help-circle" class="w-5 h-5 text-purple-400"></i>
+                        Unanswered Questions & Knowledge Gaps
+                        <span id="unansweredBadgeCount" class="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded-full border border-purple-500/30">0</span>
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Student questions that had no match in your Knowledge Base. Copy them to write answers or click "Add to KB" to create FAQ documents with 1-click.</p>
                 </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="loadUnansweredQuestions()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+                    </button>
+                    <button onclick="copyAllUnansweredQuestions()" id="btnCopyAllUnanswered" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow shadow-purple-600/30">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy All
+                    </button>
+                    <button onclick="clearAllUnansweredQuestions()" class="px-3 py-1.5 bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 hover:border-rose-700/50 transition">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All
+                    </button>
+                </div>
+            </div>
 
-                <div id="unansweredQuestionsContainer" class="space-y-3">
-                    <div class="p-8 text-center text-slate-500 border border-slate-800 rounded-xl bg-slate-900/50">
-                        Loading unanswered questions...
-                    </div>
+            <!-- Quick Tips Box -->
+            <div class="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 flex items-start gap-3 text-xs text-purple-200">
+                <i data-lucide="sparkles" class="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5"></i>
+                <div class="space-y-1">
+                    <p class="font-semibold text-purple-300">How to use this Knowledge Gap tool:</p>
+                    <p>• Click <strong>Copy All</strong> to grab all missing questions formatted in Markdown to review or feed into AI to draft answers.<br>
+                    • Click <strong>Add to KB</strong> on any question to instantly prefill a new FAQ document in your Knowledge Base.<br>
+                    • Delete answered questions individually or clear them all when resolved.</p>
+                </div>
+            </div>
+
+            <div id="unansweredQuestionsContainer" class="space-y-3">
+                <div class="p-8 text-center text-slate-500 border border-slate-800 rounded-xl bg-slate-900/50">
+                    Loading unanswered questions...
                 </div>
             </div>
         </section>
@@ -1092,6 +1110,7 @@
 
             if (tabId === 'analytics') loadAnalytics();
             if (tabId === 'handoff') loadHandoffQueue();
+            if (tabId === 'unanswered') loadUnansweredQuestions();
             if (tabId === 'keywords') loadKeywords();
             if (tabId === 'env') loadGitStatus();
         }
@@ -1403,6 +1422,7 @@
             loadFirebaseStatus();
             loadAnalytics();
             loadHandoffQueue();
+            loadUnansweredQuestions();
             loadSessionInfo();
         });
 
@@ -1929,6 +1949,10 @@
                 const badge = document.getElementById('unansweredBadgeCount');
                 if (badge) {
                     badge.textContent = currentUnansweredList.length;
+                }
+                const navBadge = document.getElementById('unansweredNavBadge');
+                if (navBadge) {
+                    navBadge.textContent = currentUnansweredList.length;
                 }
 
                 const container = document.getElementById('unansweredQuestionsContainer');

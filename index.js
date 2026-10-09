@@ -324,8 +324,9 @@ async function startEksuBot() {
 
                     const nowSeconds = Math.floor(Date.now() / 1000);
                     if (msgTimestamp > 0) {
-                        if (nowSeconds - msgTimestamp > 60) continue;
-                        if (msgTimestamp < (botStartTime - 5)) continue;
+                        // Allow up to 180 seconds variance to tolerate server clock jitter
+                        if (Math.abs(nowSeconds - msgTimestamp) > 180 && (nowSeconds - msgTimestamp > 180)) continue;
+                        if (msgTimestamp < (botStartTime - 10)) continue;
                     }
 
                     // 3. Serialize message
