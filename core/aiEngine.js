@@ -476,10 +476,10 @@ class AIEngine {
         const cleanName = (senderName && senderName !== 'Friend' && senderName !== 'User' && senderName !== 'undefined') ? senderName.trim() : null;
 
         let welcomeInstruction = '';
-        if (welcomeEngine) {
+        if (welcomeEngine && /\b(save|contact|number|register)\b/i.test(userQuery)) {
             const wConf = welcomeEngine.getConfig();
             if (wConf.enabled && wConf.includeInAIKnowledge) {
-                welcomeInstruction = `\nCONTACT REGISTRATION INSTRUCTION: If user asks about staying updated, saving contact, or registering, instruct them to save this contact as "EKSU Bot" and reply "SAVED".`;
+                welcomeInstruction = `\nCONTACT INSTRUCTION: If user asks how to save contact or register, tell them to save this contact as "EKSU Bot" and reply "SAVED".`;
             }
         }
 
@@ -489,7 +489,12 @@ ${cleanName ? `\nUser's name: ${cleanName}` : ''}${welcomeInstruction}
 === KB ===
 ${kbContext || 'No matching info.'}
 ==========
-Rules: Answer concisely and completely. For lists/steps use bullet points. If not in the KB, tell user and add [HANDOFF_NEEDED: reason].`;
+CRITICAL INSTRUCTIONS:
+1. BE DIRECT: Give a straightforward, helpful answer to the user's inquiry immediately. Do NOT be vague or evasive.
+2. REMEMBER CHAT FACTS (NEVER REPEAT QUESTIONS): Look carefully at the previous messages in this conversation. If the user has already mentioned their course (e.g. Entrepreneurship), JAMB score, screening score, registration date, or CAPS status, NEVER ask for it again. Remember and build upon what they already stated.
+3. DO NOT END EVERY MESSAGE WITH A QUESTION: Give clear information without constantly quizzing or interrogating the user with counter-questions.
+4. DO NOT APPEND 'SAVE CONTACT' REMINDERS: Never tell the user to save the contact as 'EKSU Bot' or reply 'SAVED' in normal responses.
+5. If the question cannot be answered from the KB or if the user asks for a human/admin, state that an admin will assist them and end your response with: [HANDOFF_NEEDED: reason].`;
     }
 
     getUserHistory(senderId) {
@@ -507,7 +512,7 @@ Rules: Answer concisely and completely. For lists/steps use bullet points. If no
     }
 
     saveUserHistory(senderId, history) {
-        const cappedHistory = history.slice(-4);
+        const cappedHistory = history.slice(-10); // Keep up to 10 messages (5 user + 5 bot) so facts and course name are remembered!
         this.conversations[senderId] = {
             history: cappedHistory,
             lastInteraction: Date.now()
@@ -565,6 +570,13 @@ Rules: Answer concisely and completely. For lists/steps use bullet points. If no
                 cleanReply = rawReply.replace(/\[HANDOFF_NEEDED(?::\s*[^\]]+)?\]/gi, '').trim();
             }
 
+            // Also detect if model text promised to connect user to human
+            const botAnnouncedHandoff = /connect (you|with) (a human|an admin|representative)|hand (you )?over to a human/i.test(cleanReply);
+            if (botAnnouncedHandoff && !needsHandoff) {
+                needsHandoff = true;
+                handoffReason = "Bot promised human representative assistance";
+            }
+
             // Estimate tokens (~4 characters per token)
             const inputTokens = Math.ceil((systemInstruction.length + cleanQuery.length) / 4);
             const outputTokens = Math.ceil(cleanReply.length / 4);
@@ -590,11 +602,8 @@ Rules: Answer concisely and completely. For lists/steps use bullet points. If no
                     // Record question into the Unanswered Questions tracker for owner to review and add to KB
                     this.recordUnansweredQuestion(cleanQuery, handoffReason, senderId, senderName);
 
-                    // Only pause the chat if the user explicitly requested human assistance, so subsequent known questions still get answered
-                    const explicitHumanRequest = /\b(human|agent|admin|live agent|representative|call someone|talk to someone|speak to someone)\b/i.test(cleanQuery);
-                    if (explicitHumanRequest) {
-                        this.pauseAIForUser(senderId, handoffReason, cleanQuery, senderName);
-                    }
+                    // ALWAYS pause AI for this user when handoff is triggered so bot stops chatting and waits for owner!
+                    this.pauseAIForUser(senderId, handoffReason, cleanQuery, senderName);
                 }
             }
 
@@ -717,7 +726,7 @@ INSTRUCTIONS FOR AUDIO VOICE MESSAGE:
     }
 
     // --- 🖼️ WHATSAPP IMAGE / SCREENSHOT RECOGNITION & KB REPLY ---
-    async processImageMessage(imageBuffer, mimeType, caption, senderId, senderName) {
+    async processImageMessage(imagesOrBuffer, mimeType, caption, senderId, senderName) {
         if (!this.kb.enabled) return null;
         if (this.isUserPaused(senderId)) return { isPaused: true };
 
@@ -725,7 +734,18 @@ INSTRUCTIONS FOR AUDIO VOICE MESSAGE:
         const apiKeys = rawKeyString.split(',').map(k => k.trim()).filter(Boolean);
         if (apiKeys.length === 0) return { reply: "⚠️ *AI Notice:* GEMINI_API_KEY is not configured." };
 
-        const base64Image = imageBuffer.toString('base64');
+        // Normalize images into array of { buffer, mimeType }
+        let imageItems = [];
+        if (Array.isArray(imagesOrBuffer)) {
+            imageItems = imagesOrBuffer;
+        } else if (Buffer.isBuffer(imagesOrBuffer)) {
+            imageItems = [{ buffer: imagesOrBuffer, mimeType: mimeType || 'image/jpeg' }];
+        }
+
+        if (imageItems.length === 0) {
+            return { reply: "⚠️ *AI Notice:* No valid images received to analyze." };
+        }
+
         const cleanName = (senderName && senderName !== 'Friend' && senderName !== 'User' && senderName !== 'undefined') ? senderName.trim() : null;
 
         const systemInstruction = `${this.kb.systemPrompt}
@@ -736,23 +756,36 @@ ${this.kb.entries.map(e => `[${e.title}]\n${e.content}`).join('\n\n')}
 ================================
 
 INSTRUCTIONS FOR IMAGE / SCREENSHOT ANALYSIS:
-1. ${cleanName ? `Address the user as "${cleanName}".` : 'Be polite, clear, and reassuring.'}
-2. Carefully examine what is shown in the image (e.g. JAMB CAPS admission status, EKSU portal error, payment receipt, O'Level result, screening slip).
-3. If the user provided a caption or question, answer their question directly based on what is shown in the image and the Knowledge Base.
-4. If no caption was provided, explain what the screenshot shows, explain what their status means according to EKSU & JAMB guidelines, and tell them what exact next steps they should take.
-5. If the inquiry requires human staff intervention or cannot be resolved from the knowledge base, end your message with: [HANDOFF_NEEDED: Image inquiry requires staff review].`;
+1. ${cleanName ? `Address the user as "${cleanName}".` : 'Be polite, clear, and direct.'}
+2. Carefully examine what is shown across all provided image(s) (e.g. JAMB CAPS admission status, EKSU portal error, payment receipt, O'Level result, screening slip).
+3. If the user provided a caption or question, answer their question directly based on what is shown in the image(s) and the Knowledge Base.
+4. If no caption was provided, explain what the screenshot shows, explain what their status means according to EKSU & JAMB guidelines, and state what exact next steps they should take.
+5. Provide ONE unified, direct answer. Do NOT repeat yourself or ask unnecessary questions.
+6. If the inquiry requires human staff intervention or cannot be resolved from the knowledge base, end your message with: [HANDOFF_NEEDED: Image inquiry requires staff review].`;
 
         const cleanModelName = (this.kb.model || 'gemini-1.5-flash').replace(/^models\//, '').trim();
-        const userPrompt = caption ? caption.trim() : "Please examine this screenshot/image and explain what it means and what next steps I should take according to the EKSU and JAMB guidelines.";
+        const userPrompt = caption ? caption.trim() : "Please examine the uploaded screenshot(s)/image(s) and provide a clear, direct answer and what next steps I should take according to the EKSU and JAMB guidelines.";
+
+        // Build parts with all images followed by the text prompt
+        const parts = [];
+        for (const img of imageItems) {
+            const b64 = img.buffer ? img.buffer.toString('base64') : '';
+            if (b64) {
+                parts.push({
+                    inlineData: {
+                        mimeType: img.mimeType || 'image/jpeg',
+                        data: b64
+                    }
+                });
+            }
+        }
+        parts.push({ text: userPrompt });
 
         const payload = {
             systemInstruction: { parts: [{ text: systemInstruction }] },
             contents: [{
                 role: 'user',
-                parts: [
-                    { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Image } },
-                    { text: userPrompt }
-                ]
+                parts
             }],
             generationConfig: {
                 temperature: 0.4,

@@ -12,9 +12,174 @@ function getGlobalOwnerJid(client) {
     return null;
 }
 
-// In-flight request tracker and per-sender debounce to protect API quotas
+// In-flight request tracker and per-sender message buffer for bundling rapid multi-messages/images
 const inFlightSenders = new Set();
-const lastSenderReplyTime = new Map();
+const senderBuffers = new Map(); // senderId -> { texts: [], images: [], lastM: m, timer: timeoutId }
+const AGGREGATION_WINDOW_MS = 2500; // 2.5 seconds window to group multi-messages/images
+
+// Handler to process the unified bundled messages/images for a user
+async function processUnifiedBundle(senderId) {
+    const bundle = senderBuffers.get(senderId);
+    if (!bundle) return;
+    senderBuffers.delete(senderId);
+
+    const { texts, images, lastM } = bundle;
+    const m = lastM;
+    if (!m) return;
+
+    // Check if user is currently paused in Human Handoff mode
+    if (aiEngine.isUserPaused(senderId)) {
+        return; // Silent: let the human owner chat without bot interference
+    }
+
+    const kb = aiEngine.getKB();
+    const kwConfig = keywordEngine.getConfig();
+    const senderName = (m.pushName && m.pushName !== 'User') ? m.pushName : (m.senderName || 'Friend');
+    const userPhone = m.userPhone || senderId.split('@')[0];
+    const unifiedText = texts.join('\n').trim();
+
+    // 0. Explicit human / admin assistance request check
+    const explicitHumanRegex = /^(talk to (human|admin|someone|an agent|person)|i want (human|admin)|let me talk to|speak (with|to) human|can i speak to (human|someone)|human please|admin please)/i;
+    if (explicitHumanRegex.test(unifiedText)) {
+        aiEngine.pauseAIForUser(senderId, "User explicitly requested human/admin assistance", unifiedText, senderName);
+        const ownerJid = getGlobalOwnerJid(m.client);
+        const cleanNumber = userPhone.replace(/[^0-9]/g, '');
+
+        await m.reply("Sure! I have paused the AI and connected you to our representative. Please hold on, someone will attend to you shortly. 🙏");
+
+        if (ownerJid) {
+            const alertMsg = `🚨 *Human Representative Requested*\n\n` +
+                `👤 *User:* +${cleanNumber} (${senderName})\n` +
+                `❓ *Request:* "${unifiedText}"\n\n` +
+                `⏸️ _AI is now paused for this chat._\n` +
+                `👉 *To resume after you reply:* Type *.airesume* in their chat, or send:\n` +
+                `*.airesume ${cleanNumber}*`;
+
+            await m.client.sendMessage(ownerJid, { text: alertMsg, mentions: [senderId] });
+        }
+        return;
+    }
+
+    // 1. Keyword Rule Engine check (If text is present and matches a keyword rule)
+    if (kwConfig.enabled && unifiedText) {
+        const kwMatch = keywordEngine.findMatch(unifiedText);
+        if (kwMatch) {
+            console.log(`🎯 [KeywordEngine] User ${senderId} triggered rule '${kwMatch.id}' with bundle: "${unifiedText}"`);
+            const rawResponses = (Array.isArray(kwMatch.responses) && kwMatch.responses.length > 0)
+                ? kwMatch.responses
+                : [kwMatch.response || ''];
+
+            for (let i = 0; i < rawResponses.length; i++) {
+                const rawBubble = rawResponses[i];
+                if (!rawBubble || !rawBubble.trim()) continue;
+
+                let replyText = rawBubble
+                    .replace(/@user/gi, senderName)
+                    .replace(/@number/gi, userPhone);
+
+                try {
+                    if (m.client?.sendPresenceUpdate) {
+                        await m.client.sendPresenceUpdate('composing', m.jid);
+                    }
+                } catch (e) {}
+
+                await new Promise(r => setTimeout(r, i === 0 ? 300 : 700));
+
+                try {
+                    await m.reply(replyText);
+                } catch (replyErr) {
+                    console.warn('⚠️ m.reply fallback triggered:', replyErr.message);
+                    if (m.client?.sendMessage) {
+                        await m.client.sendMessage(m.jid, { text: replyText });
+                    }
+                }
+            }
+
+            try {
+                if (m.client?.sendPresenceUpdate) {
+                    await m.client.sendPresenceUpdate('paused', m.jid);
+                }
+            } catch (e) {}
+
+            analytics.recordMessage(senderId, true);
+            return;
+        }
+    }
+
+    // 2. Standalone Mode check
+    if (kwConfig.standalone) {
+        return; // Only keyword rules respond in standalone mode
+    }
+
+    // 3. If AI is disabled in Hybrid mode
+    if (!kb.enabled) return;
+
+    if (inFlightSenders.has(senderId)) return;
+    inFlightSenders.add(senderId);
+
+    try {
+        // Compose typing presence
+        try {
+            if (m.client?.sendPresenceUpdate) {
+                await m.client.sendPresenceUpdate('composing', m.jid);
+            }
+        } catch (e) {}
+
+        let result = null;
+
+        // If bundled images exist, send to Gemini vision with all images + unified text
+        if (images.length > 0) {
+            result = await aiEngine.processImageMessage(images, 'image/jpeg', unifiedText, senderId, senderName);
+        } else if (unifiedText) {
+            result = await aiEngine.generateReply(unifiedText, senderId, senderName);
+        }
+
+        if (result && result.reply) {
+            try {
+                await m.reply(result.reply);
+            } catch (replyErr) {
+                console.warn('⚠️ [AI AutoReply] m.reply fallback triggered:', replyErr.message);
+                if (m.client?.sendMessage) {
+                    await m.client.sendMessage(m.jid, { text: result.reply });
+                }
+            }
+            analytics.recordMessage(senderId, true);
+
+            // Handle Smart Human Handoff Alert to Owner
+            if (result.handoff) {
+                // Ensure AI is paused for this user
+                aiEngine.pauseAIForUser(senderId, result.handoff.reason, result.handoff.query || unifiedText, senderName);
+
+                const ownerJid = getGlobalOwnerJid(m.client);
+                if (ownerJid) {
+                    const cleanNumber = userPhone.replace(/[^0-9]/g, '');
+                    const alertMsg = `🚨 *Smart Human Handoff Alert*\n\n` +
+                        `👤 *User:* +${cleanNumber} (${senderName})\n` +
+                        `❓ *Question:* "${result.handoff.query || unifiedText}"\n` +
+                        `📝 *Reason:* ${result.handoff.reason}\n\n` +
+                        `⏸️ _AI paused for this user._\n` +
+                        `👉 *To resume:* Simply type *.airesume* directly inside their chat, or send:\n` +
+                        `*.airesume ${cleanNumber}*`;
+
+                    await m.client.sendMessage(ownerJid, {
+                        text: alertMsg,
+                        mentions: [senderId]
+                    });
+                }
+            }
+        }
+
+        try {
+            if (m.client?.sendPresenceUpdate) {
+                await m.client.sendPresenceUpdate('paused', m.jid);
+            }
+        } catch (e) {}
+    } catch (err) {
+        console.error('❌ Error processing unified bundle:', err.message);
+    } finally {
+        inFlightSenders.delete(senderId);
+    }
+}
 
 // 1. ACTIVE TEXT LISTENER
 Module({
@@ -31,6 +196,9 @@ Module({
         const prefix = process.env.PREFIX || '.';
         if (clean.startsWith(prefix)) return;
 
+        // If user is already paused in Human Handoff mode, do not process
+        if (aiEngine.isUserPaused(m.sender)) return;
+
         analytics.recordMessage(m.sender, false);
 
         const kb = aiEngine.getKB();
@@ -43,7 +211,7 @@ Module({
         if (welcomeConfig.enabled) {
             const isEligibleChat = !welcomeConfig.dmOnly || !m.isGroup;
             if (isEligibleChat) {
-                // Case A: User has received the welcome message and is confirming with "saved"
+                // Case A: User has received welcome message and is confirming with "saved"
                 if (welcomeEngine.isAwaitingSave(m.sender)) {
                     if (welcomeEngine.isSaveTrigger(clean)) {
                         welcomeEngine.recordSaved(m.sender);
@@ -58,7 +226,7 @@ Module({
                                 if (m.client?.sendPresenceUpdate) await m.client.sendPresenceUpdate('paused', m.jid);
                             } catch (e) {}
                             analytics.recordMessage(m.sender, true);
-                            return; // Confirmation sent! Subsequent messages proceed to normal keywords/AI
+                            return;
                         }
                     } else if (welcomeConfig.requireSavedBeforeChat) {
                         const reminderMsg = `Kindly save this contact as *EKSU Bot* and reply *SAVED* to start chatting! 😊`;
@@ -81,7 +249,7 @@ Module({
                             if (m.client?.sendPresenceUpdate) await m.client.sendPresenceUpdate('paused', m.jid);
                         } catch (e) {}
                         analytics.recordMessage(m.sender, true);
-                        return; // Halt here so user sees welcome & save instruction first
+                        return;
                     }
                 }
             }
@@ -89,139 +257,33 @@ Module({
 
         // If both Keyword Engine and AI are disabled, do nothing
         if (!kwConfig.enabled && !kb.enabled) return;
-
-        // DM only enforcement (applies to AI and auto-replies)
         if (kb.dmOnly && m.isGroup) return;
 
-        // 1. Preset Keyword Rule Engine (Zero latency, 0 token cost, instant reply)
-        if (kwConfig.enabled) {
-            const kwMatch = keywordEngine.findMatch(clean);
-            if (kwMatch) {
-                console.log(`🎯 [KeywordEngine] User ${m.sender} triggered rule '${kwMatch.id}' with query: "${clean}"`);
-                const rawResponses = (Array.isArray(kwMatch.responses) && kwMatch.responses.length > 0)
-                    ? kwMatch.responses
-                    : [kwMatch.response || ''];
-
-                // Send each response as a separate chat bubble in sequence!
-                for (let i = 0; i < rawResponses.length; i++) {
-                    const rawBubble = rawResponses[i];
-                    if (!rawBubble || !rawBubble.trim()) continue;
-
-                    let replyText = rawBubble
-                        .replace(/@user/gi, senderName)
-                        .replace(/@number/gi, m.sender.split('@')[0]);
-
-                    // Simulate typing for each bubble
-                    try {
-                        if (m.client?.sendPresenceUpdate) {
-                            await m.client.sendPresenceUpdate('composing', m.jid);
-                        }
-                    } catch (e) {}
-
-                    // Delay between multiple chat bubbles
-                    await new Promise(r => setTimeout(r, i === 0 ? 300 : 800));
-
-                    try {
-                        await m.reply(replyText);
-                    } catch (replyErr) {
-                        console.warn('⚠️ m.reply fallback triggered:', replyErr.message);
-                        if (m.client?.sendMessage) {
-                            await m.client.sendMessage(m.jid, { text: replyText });
-                        }
-                    }
-                }
-
-                try {
-                    if (m.client?.sendPresenceUpdate) {
-                        await m.client.sendPresenceUpdate('paused', m.jid);
-                    }
-                } catch (e) {}
-
-                analytics.recordMessage(m.sender, true);
-                return; // Handled by keyword rule! Do NOT invoke Gemini AI.
-            }
+        // Add text to the sender's debounce aggregation buffer
+        let buf = senderBuffers.get(m.sender);
+        if (!buf) {
+            buf = { texts: [], images: [], lastM: m, timer: null };
+            senderBuffers.set(m.sender, buf);
         }
 
-        // 2. Standalone Mode: If Keyword Engine is set to standalone, do NOT call AI!
-        if (kwConfig.standalone) {
-            return; // Only keyword rules respond in standalone mode
-        }
+        buf.texts.push(clean);
+        buf.lastM = m;
 
-        // 3. If AI is disabled in Hybrid mode, do not call AI
-        if (!kb.enabled) return;
+        // Clear existing debounce timer and restart it for 2.5s window
+        if (buf.timer) clearTimeout(buf.timer);
+        buf.timer = setTimeout(() => {
+            processUnifiedBundle(m.sender);
+        }, AGGREGATION_WINDOW_MS);
 
-        // 4. Check if user is currently paused in Human Handoff mode
-        if (aiEngine.isUserPaused(m.sender)) {
-            return; // Let the human owner chat without AI interference
-        }
-
-        // 2. Debounce and Rate-Limiting Protection for AI API (Prevents 429 Quota Spikes)
-        const now = Date.now();
-        const lastReply = lastSenderReplyTime.get(m.sender) || 0;
-        if (now - lastReply < 3000) {
-            return; // Discard rapid-fire spam within 3 seconds
-        }
-
-        if (inFlightSenders.has(m.sender)) {
-            return; // Already generating a reply for this user
-        }
-
-        inFlightSenders.add(m.sender);
-        lastSenderReplyTime.set(m.sender, now);
-
+        // Show typing indicator during collection
         try {
-            // Typing presence simulation
-            try {
-                if (m.client?.sendPresenceUpdate) {
-                    await m.client.sendPresenceUpdate('composing', m.jid);
-                }
-            } catch (e) {}
-
-            const result = await aiEngine.generateReply(clean, m.sender, senderName);
-
-            if (result && result.reply) {
-                try {
-                    await m.reply(result.reply);
-                } catch (replyErr) {
-                    console.warn('⚠️ [AI AutoReply] m.reply fallback triggered:', replyErr.message);
-                    if (m.client?.sendMessage) {
-                        await m.client.sendMessage(m.jid, { text: result.reply });
-                    }
-                }
-                analytics.recordMessage(m.sender, true);
-
-                // Handle Smart Human Handoff Alert to Owner
-                if (result.handoff) {
-                    const ownerJid = getGlobalOwnerJid(m.client);
-                    if (ownerJid) {
-                        const cleanNumber = m.userPhone || m.sender.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
-                        const alertMsg = `🚨 *Smart Human Handoff Alert*\n\n` +
-                            `👤 *User:* +${cleanNumber} (${senderName})\n` +
-                            `❓ *Question:* "${result.handoff.query}"\n` +
-                            `📝 *Reason:* ${result.handoff.reason}\n\n` +
-                            `⏸️ _AI paused for this user._\n` +
-                            `👉 *To resume:* Simply type *.airesume* directly inside their chat, or send:\n` +
-                            `*.airesume ${cleanNumber}*`;
-
-                        await m.client.sendMessage(ownerJid, {
-                            text: alertMsg,
-                            mentions: [m.sender]
-                        });
-                    }
-                }
+            if (m.client?.sendPresenceUpdate) {
+                m.client.sendPresenceUpdate('composing', m.jid).catch(() => {});
             }
-
-            try {
-                if (m.client?.sendPresenceUpdate) {
-                    await m.client.sendPresenceUpdate('paused', m.jid);
-                }
-            } catch (e) {}
-        } finally {
-            inFlightSenders.delete(m.sender);
-        }
+        } catch (e) {}
 
     } catch (err) {
-        console.error('AI Auto-reply listener error:', err.message);
+        console.error('AI Auto-reply text listener error:', err.message);
     }
 });
 
@@ -233,14 +295,15 @@ Module({
     try {
         if (m.fromMe) return;
 
+        // If user is paused in Human Handoff mode, do not process
+        if (aiEngine.isUserPaused(m.sender)) return;
+
         analytics.recordMessage(m.sender, false);
 
         const kb = aiEngine.getKB();
         const kwConfig = keywordEngine.getConfig();
         if (kwConfig.standalone || !kb.enabled) return;
         if (kb.dmOnly && m.isGroup) return;
-
-        if (aiEngine.isUserPaused(m.sender)) return;
 
         const audioMsg = m.data?.message?.audioMessage;
         if (!audioMsg) return;
@@ -273,6 +336,7 @@ Module({
 
             // Handoff alert if audio needed human
             if (result.handoff) {
+                aiEngine.pauseAIForUser(m.sender, result.handoff.reason, "Voice Note Audio Query", senderName);
                 const ownerJid = getGlobalOwnerJid(m.client);
                 if (ownerJid) {
                     const cleanNumber = (m.userPhone || m.sender.split('@')[0].split(':')[0]).replace(/[^0-9]/g, '');
@@ -292,13 +356,16 @@ Module({
     }
 });
 
-// 3. 🖼️ ACTIVE IMAGE / SCREENSHOT LISTENER
+// 3. 🖼️ ACTIVE IMAGE / SCREENSHOT LISTENER (Bundled with text/other images)
 Module({
     on: 'imageMessage',
     fromMe: false
 }, async (m) => {
     try {
         if (m.fromMe) return;
+
+        // If user is paused in Human Handoff mode, do not process
+        if (aiEngine.isUserPaused(m.sender)) return;
 
         analytics.recordMessage(m.sender, false);
 
@@ -307,54 +374,42 @@ Module({
         if (kwConfig.standalone || !kb.enabled) return;
         if (kb.dmOnly && m.isGroup) return;
 
-        if (aiEngine.isUserPaused(m.sender)) return;
-
         const imgMsg = m.data?.message?.imageMessage;
         if (!imgMsg) return;
 
-        // Visual indicator that bot is analyzing image
+        // Quick reaction indicator
         try {
             await m.client.sendMessage(m.jid, { react: { text: "🔍", key: m.key } });
             if (m.client?.sendPresenceUpdate) {
-                await m.client.sendPresenceUpdate('composing', m.jid);
+                m.client.sendPresenceUpdate('composing', m.jid).catch(() => {});
             }
         } catch (e) {}
 
         const imageBuffer = await m.download();
-        if (!imageBuffer) {
-            await m.reply("⚠️ *Image Notice:* Could not process the uploaded image. Please try resending it or ask your question in text.");
-            return;
-        }
+        if (!imageBuffer) return;
 
-        const senderName = (m.pushName && m.pushName !== 'User') ? m.pushName : (m.senderName || 'Friend');
         const mimeType = imgMsg.mimetype || 'image/jpeg';
-        const caption = m.text || imgMsg.caption || '';
+        const caption = (m.text || imgMsg.caption || '').trim();
 
-        const result = await aiEngine.processImageMessage(imageBuffer, mimeType, caption, m.sender, senderName);
-
-        if (result && result.reply) {
-            await m.reply(result.reply);
-            analytics.recordMessage(m.sender, true);
-            try {
-                await m.client.sendMessage(m.jid, { react: { text: "✅", key: m.key } });
-            } catch (e) {}
-
-            // Handoff alert if image inquiry needed human
-            if (result.handoff) {
-                const ownerJid = getGlobalOwnerJid(m.client);
-                if (ownerJid) {
-                    const cleanNumber = (m.userPhone || m.sender.split('@')[0].split(':')[0]).replace(/[^0-9]/g, '');
-                    const alertMsg = `🚨 *Smart Human Handoff Alert (Image Inquiry)*\n\n` +
-                        `👤 *User:* @${cleanNumber} (${senderName})\n` +
-                        `📝 *Reason:* ${result.handoff.reason}\n\n` +
-                        `⏸️ _AI paused for this user._\n` +
-                        `👉 *To resume:* Simply type *.airesume* directly inside their chat, or send:\n` +
-                        `*.airesume ${cleanNumber}*`;
-
-                    await m.client.sendMessage(ownerJid, { text: alertMsg, mentions: [m.sender] });
-                }
-            }
+        // Bundle into senderBuffers
+        let buf = senderBuffers.get(m.sender);
+        if (!buf) {
+            buf = { texts: [], images: [], lastM: m, timer: null };
+            senderBuffers.set(m.sender, buf);
         }
+
+        buf.images.push({ buffer: imageBuffer, mimeType });
+        if (caption) {
+            buf.texts.push(caption);
+        }
+        buf.lastM = m;
+
+        // Reset debounce timer to group images/messages sent within 2.5 seconds
+        if (buf.timer) clearTimeout(buf.timer);
+        buf.timer = setTimeout(() => {
+            processUnifiedBundle(m.sender);
+        }, AGGREGATION_WINDOW_MS);
+
     } catch (err) {
         console.error('Image message listener error:', err.message);
     }

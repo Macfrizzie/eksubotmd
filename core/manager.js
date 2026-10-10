@@ -127,19 +127,27 @@ async function serialize(sock, m) {
         m.text = '';
     }
 
+    // Clean quote object helper to prevent Signal serialization corruptions
+    const getCleanQuoted = () => {
+        if (!m.key) return undefined;
+        return { key: m.key, message: m.data?.message || m.message };
+    };
+
     // Methods with paced sending to prevent ban triggers
     m.sendMessage = async (content, type = 'text', options = {}) => {
         return pacedSend(() => {
             const payload = Buffer.isBuffer(content) 
                 ? { [type]: content, ...options } 
                 : { text: content, ...options };
-            return sock.sendMessage(m.jid, payload, { quoted: m, ...options });
+            const quotedOpt = options.quoted !== undefined ? options.quoted : getCleanQuoted();
+            return sock.sendMessage(m.jid, payload, { ...options, quoted: quotedOpt });
         });
     };
 
     m.sendReply = async (text, options = {}) => {
         return pacedSend(() => {
-            return sock.sendMessage(m.jid, { text: String(text), ...options }, { quoted: m, ...options });
+            const quotedOpt = options.quoted !== undefined ? options.quoted : getCleanQuoted();
+            return sock.sendMessage(m.jid, { text: String(text), ...options }, { ...options, quoted: quotedOpt });
         });
     };
 
