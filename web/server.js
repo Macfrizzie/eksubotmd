@@ -8,6 +8,7 @@ const aiEngine = require('../core/aiEngine');
 const firebaseSync = require('../core/firebase');
 const analytics = require('../core/analytics');
 const keywordEngine = require('../core/keywordEngine');
+const welcomeEngine = require('../core/welcomeEngine');
 const { exec } = require('child_process');
 const AdmZip = require('adm-zip');
 
@@ -383,6 +384,55 @@ app.post('/api/keywords/firebase/pull', async (req, res) => {
     try {
         const result = await firebaseSync.pullKeywords();
         res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- 8.5 FIRST-TIME USER WELCOME & CONTACT SAVER FLOW API ---
+app.get('/api/welcome/config', (req, res) => {
+    res.json(welcomeEngine.getConfig());
+});
+
+app.post('/api/welcome/config', (req, res) => {
+    try {
+        const success = welcomeEngine.saveConfig(req.body);
+        res.json({ success, config: welcomeEngine.getConfig() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/welcome/users', (req, res) => {
+    res.json(welcomeEngine.getUsersList());
+});
+
+app.delete('/api/welcome/users/:id', (req, res) => {
+    try {
+        const success = welcomeEngine.resetUser(req.params.id);
+        res.json({ success });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete('/api/welcome/users', (req, res) => {
+    try {
+        const success = welcomeEngine.clearAllUsers();
+        res.json({ success });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/welcome/test', (req, res) => {
+    try {
+        const { welcomeMessage, savedConfirmationMessage, name, phone } = req.body;
+        const testName = name || 'John';
+        const testPhone = phone || '2348012345678';
+        const welcomePreview = welcomeEngine.formatText(welcomeMessage, testName, testPhone);
+        const confirmPreview = welcomeEngine.formatText(savedConfirmationMessage, testName, testPhone);
+        res.json({ welcomePreview, confirmPreview });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

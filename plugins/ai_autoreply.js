@@ -2,6 +2,7 @@ const { Module } = require('../core/handler');
 const aiEngine = require('../core/aiEngine');
 const analytics = require('../core/analytics');
 const keywordEngine = require('../core/keywordEngine');
+const welcomeEngine = require('../core/welcomeEngine');
 const { jidNormalizedUser } = require('@whiskeysockets/baileys');
 
 function getGlobalOwnerJid(client) {
@@ -34,14 +35,63 @@ Module({
 
         const kb = aiEngine.getKB();
         const kwConfig = keywordEngine.getConfig();
+        const senderName = (m.pushName && m.pushName !== 'User') ? m.pushName : (m.senderName || 'Friend');
+        const userPhone = m.userPhone || m.sender.split('@')[0];
+
+        // 0. FIRST-TIME USER WELCOME & CONTACT SAVER FLOW
+        const welcomeConfig = welcomeEngine.getConfig();
+        if (welcomeConfig.enabled) {
+            const isEligibleChat = !welcomeConfig.dmOnly || !m.isGroup;
+            if (isEligibleChat) {
+                // Case A: User has received the welcome message and is confirming with "saved"
+                if (welcomeEngine.isAwaitingSave(m.sender)) {
+                    if (welcomeEngine.isSaveTrigger(clean)) {
+                        welcomeEngine.recordSaved(m.sender);
+                        const confirmMsg = welcomeEngine.getSavedConfirmationMessage(senderName, userPhone);
+                        if (confirmMsg) {
+                            try {
+                                if (m.client?.sendPresenceUpdate) await m.client.sendPresenceUpdate('composing', m.jid);
+                            } catch (e) {}
+                            await new Promise(r => setTimeout(r, 400));
+                            await m.reply(confirmMsg);
+                            try {
+                                if (m.client?.sendPresenceUpdate) await m.client.sendPresenceUpdate('paused', m.jid);
+                            } catch (e) {}
+                            analytics.recordMessage(m.sender, true);
+                            return; // Confirmation sent! Subsequent messages proceed to normal keywords/AI
+                        }
+                    } else if (welcomeConfig.requireSavedBeforeChat) {
+                        const reminderMsg = `Kindly save this contact as *EKSU Bot* and reply *SAVED* to start chatting! 😊`;
+                        await m.reply(reminderMsg);
+                        return;
+                    }
+                }
+
+                // Case B: Brand new user sending their very first message
+                if (welcomeEngine.isFirstTimeUser(m.sender)) {
+                    welcomeEngine.recordFirstWelcome(m.sender, senderName);
+                    const welcomeMsg = welcomeEngine.getWelcomeMessage(senderName, userPhone);
+                    if (welcomeMsg) {
+                        try {
+                            if (m.client?.sendPresenceUpdate) await m.client.sendPresenceUpdate('composing', m.jid);
+                        } catch (e) {}
+                        await new Promise(r => setTimeout(r, 500));
+                        await m.reply(welcomeMsg);
+                        try {
+                            if (m.client?.sendPresenceUpdate) await m.client.sendPresenceUpdate('paused', m.jid);
+                        } catch (e) {}
+                        analytics.recordMessage(m.sender, true);
+                        return; // Halt here so user sees welcome & save instruction first
+                    }
+                }
+            }
+        }
 
         // If both Keyword Engine and AI are disabled, do nothing
         if (!kwConfig.enabled && !kb.enabled) return;
 
         // DM only enforcement (applies to AI and auto-replies)
         if (kb.dmOnly && m.isGroup) return;
-
-        const senderName = (m.pushName && m.pushName !== 'User') ? m.pushName : (m.senderName || 'Friend');
 
         // 1. Preset Keyword Rule Engine (Zero latency, 0 token cost, instant reply)
         if (kwConfig.enabled) {

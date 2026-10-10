@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const analytics = require('./analytics');
+let welcomeEngine = null;
+try { welcomeEngine = require('./welcomeEngine'); } catch (e) {}
 
 const KB_FILE = path.join(__dirname, '../knowledge_base.json');
 const CONV_FILE = path.join(__dirname, '../conversations.json');
@@ -473,9 +475,17 @@ class AIEngine {
 
         const cleanName = (senderName && senderName !== 'Friend' && senderName !== 'User' && senderName !== 'undefined') ? senderName.trim() : null;
 
+        let welcomeInstruction = '';
+        if (welcomeEngine) {
+            const wConf = welcomeEngine.getConfig();
+            if (wConf.enabled && wConf.includeInAIKnowledge) {
+                welcomeInstruction = `\nCONTACT REGISTRATION INSTRUCTION: If user asks about staying updated, saving contact, or registering, instruct them to save this contact as "EKSU Bot" and reply "SAVED".`;
+            }
+        }
+
         // Lean, compact system prompt to minimize input tokens
         return `${this.kb.systemPrompt}
-${cleanName ? `\nUser's name: ${cleanName}` : ''}
+${cleanName ? `\nUser's name: ${cleanName}` : ''}${welcomeInstruction}
 === KB ===
 ${kbContext || 'No matching info.'}
 ==========
@@ -624,14 +634,10 @@ ${this.kb.entries.map(e => `[${e.title}]\n${e.content}`).join('\n\n')}
 
 INSTRUCTIONS FOR AUDIO VOICE MESSAGE:
 1. ${cleanName ? `The user who sent this voice note is named "${cleanName}". Address them warmly by their name in your answer.` : 'Be warm and conversational.'}
-2. First, accurately transcribe what the user asked in the voice note.
-3. Next, provide a clear, concise answer based on the Knowledge Base.
-4. If not in the knowledge base, state you are connecting them to an admin and end with [HANDOFF_NEEDED: Audio question not found in knowledge base].
-
-FORMAT YOUR RESPONSE EXACTLY AS:
-🎤 *You said:* "<exact transcription>"
-
-💡 *Answer:* <your helpful answer${cleanName ? ` addressing ${cleanName}` : ''}>`;
+2. Accurately understand what the user asked in the voice note.
+3. Provide a direct, concise, and helpful answer based on the Knowledge Base.
+4. IMPORTANT: Do NOT include "You said:", do NOT quote their transcription, and do NOT prefix with "Answer:". Reply directly and naturally to their inquiry, as in a normal conversation.
+5. If not in the knowledge base, state you are connecting them to an admin and end with [HANDOFF_NEEDED: Audio question not found in knowledge base].`;
 
         const cleanModelName = (this.kb.model || 'gemini-1.5-flash').replace(/^models\//, '').trim();
 
@@ -641,7 +647,7 @@ FORMAT YOUR RESPONSE EXACTLY AS:
                 role: 'user',
                 parts: [
                     { inlineData: { mimeType: mimeType || 'audio/ogg; codecs=opus', data: base64Audio } },
-                    { text: "Please transcribe this WhatsApp voice note and provide a direct answer." }
+                    { text: "Please listen to this WhatsApp voice note and provide a direct answer to their question." }
                 ]
             }],
             generationConfig: {

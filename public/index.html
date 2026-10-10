@@ -74,6 +74,11 @@
                     <span id="statusText">Connecting...</span>
                 </div>
 
+                <button onclick="runGitPull()" id="headerGitPullBtn" title="Pull Latest Updates from GitHub" class="p-1.5 sm:px-3 sm:py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i data-lucide="git-pull-request" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Git Pull</span>
+                </button>
+
                 <button onclick="restartBotServer()" title="Restart Bot Socket" class="p-1.5 sm:px-3 sm:py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition">
                     <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
                     <span class="hidden sm:inline">Restart</span>
@@ -91,6 +96,10 @@
             <button onclick="switchTab('keywords')" id="tab-btn-keywords" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="tag" class="w-4 h-4"></i> Keyword Rules
                 <span id="keywordBadgeCount" class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] rounded-full border border-emerald-500/30">0</span>
+            </button>
+            <button onclick="switchTab('welcome')" id="tab-btn-welcome" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                <i data-lucide="user-plus" class="w-4 h-4 text-emerald-400"></i> Welcome Flow
+                <span id="welcomeNavBadge" class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] rounded-full border border-emerald-500/30">Auto</span>
             </button>
             <button onclick="switchTab('ai')" id="tab-btn-ai" class="tab-btn flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                 <i data-lucide="sparkles" class="w-4 h-4"></i> AI Knowledge Base
@@ -260,6 +269,35 @@
                 </div>
             </div>
 
+            <!-- GitHub Auto-Update & Git Pull Station on Home Page -->
+            <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/20 border border-slate-800 hover:border-emerald-500/30 rounded-xl p-4 sm:p-5 shadow-lg transition">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
+                                <i data-lucide="git-pull-request" class="w-4 h-4"></i>
+                            </div>
+                            <h3 class="font-bold text-sm sm:text-base text-slate-100 flex items-center gap-2">
+                                System Updates & Git Pull
+                                <span id="homeGitBranchBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">main</span>
+                            </h3>
+                        </div>
+                        <p class="text-xs text-slate-400 max-w-xl">
+                            Pull the latest bot improvements, bug fixes, and features directly from your GitHub repository with 1-click.
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <button type="button" onclick="runGitPull()" id="homeGitPullBtn" class="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
+                            <i data-lucide="download-cloud" class="w-4 h-4"></i>
+                            <span id="homeGitPullBtnText">Pull Latest Updates (git pull)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="homeGitPullOutput" class="hidden mt-3 p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto"></div>
+            </div>
+
             <!-- Terminal Box -->
             <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col h-[400px] sm:h-[520px]">
                 <div class="bg-slate-800/60 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
@@ -367,6 +405,173 @@
                 </div>
                 <div id="keywordRulesContainer" class="divide-y divide-slate-800/80">
                     <div class="p-8 text-center text-slate-500">Loading rules...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: FIRST-TIME WELCOME & CONTACT SAVER FLOW -->
+        <section id="tab-welcome" class="tab-content hidden space-y-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900 p-5 rounded-xl border border-slate-800">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-white">
+                            <i data-lucide="user-plus" class="w-5 h-5 text-emerald-400"></i> First-Time Welcome & Contact Saver Flow
+                        </h2>
+                        <span id="welcomeActiveBadge" class="text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
+                    </div>
+                    <p class="text-xs text-slate-400">
+                        Automatically greet brand new users with a friendly welcome message asking them to save your contact as "EKSU Bot", and confirm once they reply "SAVED".
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <label class="relative inline-flex items-center cursor-pointer" title="Enable or Disable Welcome Flow">
+                        <input type="checkbox" id="welcomeMasterToggle" class="sr-only peer" onchange="toggleWelcomeFlow()">
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        <span id="welcomeMasterLabel" class="ml-3 text-sm font-medium text-slate-300">Flow Enabled</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Configuration Form & Live Preview Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left 2 Cols: Message Configuration -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <h3 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+                                <i data-lucide="message-square-plus" class="w-4 h-4 text-emerald-400"></i> Flow Message Templates
+                            </h3>
+                            <span class="text-xs text-slate-400">Supports <code class="text-emerald-400">{name}</code> and <code class="text-emerald-400">{phone}</code></span>
+                        </div>
+
+                        <!-- 1. Initial Welcome Message -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span> 1. First-Time Welcome Message (Prompt to Save Contact)
+                                </label>
+                                <span class="text-[11px] text-slate-500">Sent on user's very first message</span>
+                            </div>
+                            <textarea id="welcomeMsgInput" rows="5" oninput="updateWelcomePreview()" placeholder="Hi {name}! Welcome to EKSU Assistant... Kindly save our contact as EKSU Bot and reply SAVED..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs sm:text-sm text-slate-100 font-sans leading-relaxed focus:border-emerald-500 focus:outline-none"></textarea>
+                            <p class="text-[11px] text-slate-400">Tip: Craft this warmly and naturally so students eagerly save your number to their phonebook.</p>
+                        </div>
+
+                        <!-- 2. Confirmation Trigger Keywords -->
+                        <div class="space-y-2">
+                            <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-blue-400"></span> 2. Confirmation Trigger Words (Comma-separated)
+                            </label>
+                            <input type="text" id="welcomeSaveKeywordsInput" placeholder="saved, done, i have saved, saved it, already saved" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-100 font-mono focus:border-blue-500 focus:outline-none">
+                            <p class="text-[11px] text-slate-400">When the user sends any of these words after receiving the welcome message, they are marked as saved.</p>
+                        </div>
+
+                        <!-- 3. Post-Saved Confirmation Message -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-purple-400"></span> 3. Post-Saved Confirmation Message
+                                </label>
+                                <span class="text-[11px] text-slate-500">Sent immediately after they reply "SAVED"</span>
+                            </div>
+                            <textarea id="welcomeSavedConfirmInput" rows="4" oninput="updateWelcomePreview()" placeholder="Awesome, thank you for saving our contact, {name}! How can I assist you today?..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs sm:text-sm text-slate-100 font-sans leading-relaxed focus:border-purple-500 focus:outline-none"></textarea>
+                        </div>
+
+                        <!-- Options checkboxes -->
+                        <div class="pt-2 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+                                <input type="checkbox" id="welcomeDmOnlyCheck" checked class="rounded bg-slate-800 border-slate-700 text-emerald-500">
+                                <span>Private DM chats only (Ignore groups)</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+                                <input type="checkbox" id="welcomeIncludeAICheck" checked class="rounded bg-slate-800 border-slate-700 text-emerald-500">
+                                <span>Teach AI about saving contact in Knowledge Base</span>
+                            </label>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+                            <button type="button" onclick="resetWelcomeDefaults()" class="text-xs text-slate-400 hover:text-white transition">Reset to Default Templates</button>
+                            <button type="button" onclick="saveWelcomeSettings()" id="saveWelcomeBtn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition">
+                                <i data-lucide="check" class="w-4 h-4"></i> Save Welcome Flow Settings
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right 1 Col: Live WhatsApp Simulation Preview -->
+                <div class="space-y-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                            <h3 class="font-semibold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="smartphone" class="w-4 h-4 text-emerald-400"></i> WhatsApp Chat Simulator
+                            </h3>
+                            <button onclick="updateWelcomePreview()" class="text-[11px] text-emerald-400 hover:underline">Refresh</button>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-[11px] text-slate-400">Test with User Name:</label>
+                            <input type="text" id="simUserName" value="Blessing" oninput="updateWelcomePreview()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none">
+                        </div>
+
+                        <!-- Chat Simulation Frame -->
+                        <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800/80 space-y-3 font-sans text-xs">
+                            <!-- Inbound message -->
+                            <div class="flex justify-end">
+                                <div class="bg-emerald-700/80 text-white px-3 py-2 rounded-2xl rounded-tr-none max-w-[85%] shadow-sm">
+                                    Hello, please when is EKSU screening form closing?
+                                    <div class="text-[9px] text-emerald-200 text-right mt-0.5">10:00 AM</div>
+                                </div>
+                            </div>
+
+                            <!-- Bot Welcome Response -->
+                            <div class="flex justify-start">
+                                <div class="bg-slate-800 text-slate-100 px-3.5 py-2.5 rounded-2xl rounded-tl-none max-w-[90%] shadow-sm whitespace-pre-wrap leading-relaxed border border-slate-700" id="simWelcomeBubble">
+                                    Loading preview...
+                                </div>
+                            </div>
+
+                            <!-- User replies SAVED -->
+                            <div class="flex justify-end">
+                                <div class="bg-emerald-700/80 text-white px-3 py-1.5 rounded-2xl rounded-tr-none max-w-[85%] shadow-sm font-semibold">
+                                    SAVED
+                                    <div class="text-[9px] text-emerald-200 text-right mt-0.5">10:01 AM</div>
+                                </div>
+                            </div>
+
+                            <!-- Bot Confirmation Response -->
+                            <div class="flex justify-start">
+                                <div class="bg-slate-800 text-slate-100 px-3.5 py-2.5 rounded-2xl rounded-tl-none max-w-[90%] shadow-sm whitespace-pre-wrap leading-relaxed border border-slate-700" id="simSavedBubble">
+                                    Loading preview...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Welcomed Users Directory & Reset Manager -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow">
+                <div class="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div class="space-y-0.5">
+                        <div class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                            <span>Welcomed Users Directory</span>
+                            <span id="welcomedUsersCount" class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">0</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500">Track which users have received the welcome message and confirmed saving the contact. Reset a user to re-test the flow.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="loadWelcomedUsers()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700 flex items-center gap-1 transition">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+                        </button>
+                        <button onclick="clearAllWelcomedUsers()" class="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-medium flex items-center gap-1 transition">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All History
+                        </button>
+                    </div>
+                </div>
+
+                <div id="welcomedUsersList" class="divide-y divide-slate-800/80 max-h-96 overflow-y-auto">
+                    <div class="p-8 text-center text-slate-500 text-xs">No users welcomed yet. Brand new WhatsApp users will automatically populate here.</div>
                 </div>
             </div>
         </section>
@@ -1116,6 +1321,7 @@
             if (tabId === 'handoff') loadHandoffQueue();
             if (tabId === 'unanswered') loadUnansweredQuestions();
             if (tabId === 'keywords') loadKeywords();
+            if (tabId === 'welcome') loadWelcomeSettings();
             if (tabId === 'env') loadGitStatus();
         }
 
@@ -1427,6 +1633,7 @@
             loadAnalytics();
             loadHandoffQueue();
             loadUnansweredQuestions();
+            loadWelcomeSettings();
             loadSessionInfo();
         });
 
@@ -2591,6 +2798,7 @@
                 const res = await fetch('/api/git/status');
                 const data = await res.json();
                 const branchEl = document.getElementById('gitBranchDisplay');
+                const homeBadge = document.getElementById('homeGitBranchBadge');
                 const commitEl = document.getElementById('gitCommitDisplay');
                 const timeEl = document.getElementById('gitCommitTimeDisplay');
                 const remoteInput = document.getElementById('gitRemoteUrlInput');
@@ -2599,8 +2807,11 @@
                     remoteInput.value = data.remoteUrl;
                 }
 
+                const currentBranch = data.branch || 'main';
+                if (homeBadge) homeBadge.textContent = currentBranch;
+
                 if (data.isGit) {
-                    if (branchEl) branchEl.textContent = data.branch || 'main';
+                    if (branchEl) branchEl.textContent = currentBranch;
                     if (commitEl) commitEl.textContent = data.commitHash || 'HEAD';
                     if (timeEl) timeEl.textContent = `${data.commitMessage || ''} (${data.commitTime || ''})`;
                 } else {
@@ -2651,33 +2862,274 @@
 
         async function runGitPull() {
             const btn = document.getElementById('gitPullBtn');
+            const homeBtn = document.getElementById('homeGitPullBtn');
+            const headerBtn = document.getElementById('headerGitPullBtn');
             const outBox = document.getElementById('gitPullOutputBox');
-            const origHtml = btn.innerHTML;
+            const homeOutBox = document.getElementById('homeGitPullOutput');
 
-            btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Pulling...`;
-            btn.disabled = true;
-            outBox.classList.remove('hidden');
-            outBox.textContent = 'Running `git pull` from remote repository...';
+            const origHtml = btn ? btn.innerHTML : '';
+            const origHomeHtml = homeBtn ? homeBtn.innerHTML : '';
+
+            const loadingHtml = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Pulling updates...`;
+            if (btn) { btn.innerHTML = loadingHtml; btn.disabled = true; }
+            if (homeBtn) { homeBtn.innerHTML = loadingHtml; homeBtn.disabled = true; }
+            if (headerBtn) { headerBtn.disabled = true; }
+
+            if (outBox) {
+                outBox.classList.remove('hidden');
+                outBox.textContent = 'Running `git pull` from remote repository...';
+            }
+            if (homeOutBox) {
+                homeOutBox.classList.remove('hidden');
+                homeOutBox.textContent = 'Running `git pull` from remote repository...';
+            }
 
             try {
                 const res = await fetch('/api/git/pull', { method: 'POST' });
                 const data = await res.json();
 
                 if (data.success) {
-                    outBox.textContent = `✅ Git Pull Successful:\n\n${data.output}`;
+                    const msg = `✅ Git Pull Successful:\n\n${data.output}`;
+                    if (outBox) outBox.textContent = msg;
+                    if (homeOutBox) homeOutBox.textContent = msg;
                     loadGitStatus();
                     if (confirm('Code successfully updated from Git! Would you like to restart the bot connection now to apply changes?')) {
                         restartBotServer();
                     }
                 } else {
-                    outBox.textContent = `❌ Git Pull Failed:\n\n${data.error || 'Unknown error'}\n${data.output || ''}`;
+                    const errMsg = `❌ Git Pull Failed:\n\n${data.error || 'Unknown error'}\n${data.output || ''}`;
+                    if (outBox) outBox.textContent = errMsg;
+                    if (homeOutBox) homeOutBox.textContent = errMsg;
                 }
             } catch (err) {
-                outBox.textContent = `❌ Network Error: ${err.message}`;
+                const netErr = `❌ Network Error: ${err.message}`;
+                if (outBox) outBox.textContent = netErr;
+                if (homeOutBox) homeOutBox.textContent = netErr;
             } finally {
-                btn.innerHTML = origHtml;
-                btn.disabled = false;
+                if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+                if (homeBtn) { homeBtn.innerHTML = origHomeHtml; homeBtn.disabled = false; }
+                if (headerBtn) { headerBtn.disabled = false; }
                 lucide.createIcons();
+            }
+        }
+
+        // --- FIRST-TIME WELCOME & CONTACT SAVER MANAGER ---
+        let currentWelcomeConfig = null;
+
+        async function loadWelcomeSettings() {
+            try {
+                const res = await fetch('/api/welcome/config');
+                const config = await res.json();
+                currentWelcomeConfig = config;
+
+                const masterToggle = document.getElementById('welcomeMasterToggle');
+                const masterLabel = document.getElementById('welcomeMasterLabel');
+                const activeBadge = document.getElementById('welcomeActiveBadge');
+                const navBadge = document.getElementById('welcomeNavBadge');
+
+                if (masterToggle) masterToggle.checked = !!config.enabled;
+                if (masterLabel) masterLabel.textContent = config.enabled ? 'Flow Enabled' : 'Flow Paused';
+                if (activeBadge) {
+                    activeBadge.textContent = config.enabled ? 'Active' : 'Paused';
+                    activeBadge.className = config.enabled 
+                        ? 'text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : 'text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700';
+                }
+                if (navBadge) {
+                    navBadge.textContent = config.enabled ? 'Active' : 'Off';
+                    navBadge.className = config.enabled
+                        ? 'px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] rounded-full border border-emerald-500/30'
+                        : 'px-1.5 py-0.5 bg-slate-800 text-slate-500 text-[10px] rounded-full border border-slate-700';
+                }
+
+                const msgInput = document.getElementById('welcomeMsgInput');
+                if (msgInput) msgInput.value = config.welcomeMessage || '';
+
+                const kwInput = document.getElementById('welcomeSaveKeywordsInput');
+                if (kwInput) {
+                    const kws = Array.isArray(config.saveKeywords) ? config.saveKeywords.join(', ') : (config.saveKeywords || '');
+                    kwInput.value = kws;
+                }
+
+                const savedInput = document.getElementById('welcomeSavedConfirmInput');
+                if (savedInput) savedInput.value = config.savedConfirmationMessage || '';
+
+                const dmOnlyCheck = document.getElementById('welcomeDmOnlyCheck');
+                if (dmOnlyCheck) dmOnlyCheck.checked = config.dmOnly !== false;
+
+                const includeAICheck = document.getElementById('welcomeIncludeAICheck');
+                if (includeAICheck) includeAICheck.checked = config.includeInAIKnowledge !== false;
+
+                updateWelcomePreview();
+                loadWelcomedUsers();
+            } catch (err) {
+                console.error('Error loading welcome settings:', err);
+            }
+        }
+
+        async function toggleWelcomeFlow() {
+            const isChecked = document.getElementById('welcomeMasterToggle').checked;
+            try {
+                const res = await fetch('/api/welcome/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: isChecked })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadWelcomeSettings();
+                }
+            } catch (err) {
+                alert('Error updating welcome flow toggle: ' + err.message);
+            }
+        }
+
+        async function saveWelcomeSettings() {
+            const btn = document.getElementById('saveWelcomeBtn');
+            const origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Saving...`;
+                btn.disabled = true;
+            }
+
+            try {
+                const welcomeMessage = document.getElementById('welcomeMsgInput').value.trim();
+                const rawKeywords = document.getElementById('welcomeSaveKeywordsInput').value;
+                const saveKeywords = rawKeywords.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+                const savedConfirmationMessage = document.getElementById('welcomeSavedConfirmInput').value.trim();
+                const dmOnly = document.getElementById('welcomeDmOnlyCheck').checked;
+                const includeInAIKnowledge = document.getElementById('welcomeIncludeAICheck').checked;
+
+                const payload = {
+                    welcomeMessage,
+                    saveKeywords,
+                    savedConfirmationMessage,
+                    dmOnly,
+                    includeInAIKnowledge
+                };
+
+                const res = await fetch('/api/welcome/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('✅ Welcome Flow settings saved successfully!');
+                    loadWelcomeSettings();
+                } else {
+                    alert('Error saving welcome settings: ' + (data.error || 'Check server logs'));
+                }
+            } catch (err) {
+                alert('Network error saving welcome settings: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        function updateWelcomePreview() {
+            const simName = (document.getElementById('simUserName')?.value || 'Blessing').trim();
+            const welcomeTpl = document.getElementById('welcomeMsgInput')?.value || '';
+            const savedTpl = document.getElementById('welcomeSavedConfirmInput')?.value || '';
+
+            const simWelcome = welcomeTpl.replace(/\{name\}/gi, simName).replace(/\{phone\}/gi, '2348012345678');
+            const simSaved = savedTpl.replace(/\{name\}/gi, simName).replace(/\{phone\}/gi, '2348012345678');
+
+            const welcomeBubble = document.getElementById('simWelcomeBubble');
+            if (welcomeBubble) welcomeBubble.textContent = simWelcome || '(No welcome message configured)';
+
+            const savedBubble = document.getElementById('simSavedBubble');
+            if (savedBubble) savedBubble.textContent = simSaved || '(No confirmation message configured)';
+        }
+
+        function resetWelcomeDefaults() {
+            if (!confirm('Reset welcome flow message templates to the university recommended defaults?')) return;
+            document.getElementById('welcomeMsgInput').value = "Hi {name}! 👋 Welcome to EKSU Assistant.\n\nKindly take a moment to save this contact as *EKSU Bot* so you don't miss important admission updates, announcements, and portal clearance guides.\n\nOnce you have saved it, reply with *SAVED* to continue! 😊";
+            document.getElementById('welcomeSaveKeywordsInput').value = "saved, done, i have saved, saved it, already saved";
+            document.getElementById('welcomeSavedConfirmInput').value = "Awesome, thank you for saving our contact, {name}! 🎉\n\nYour contact has been recorded. How can I assist you today? You can ask me anything about EKSU admissions, JAMB CAPS, acceptance fees, or portal screening!";
+            updateWelcomePreview();
+        }
+
+        async function loadWelcomedUsers() {
+            try {
+                const res = await fetch('/api/welcome/users');
+                const users = await res.json();
+                const container = document.getElementById('welcomedUsersList');
+                const countBadge = document.getElementById('welcomedUsersCount');
+
+                if (countBadge) countBadge.textContent = users.length;
+                if (!container) return;
+
+                if (!users || users.length === 0) {
+                    container.innerHTML = `<div class="p-8 text-center text-slate-500 text-xs">No users welcomed yet. Brand new WhatsApp users will automatically populate here.</div>`;
+                    return;
+                }
+
+                container.innerHTML = '';
+                users.forEach(u => {
+                    const row = document.createElement('div');
+                    row.className = 'p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-slate-800/30 transition';
+
+                    const isSaved = u.status === 'saved';
+                    const statusBadge = isSaved
+                        ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Saved Contact</span>`
+                        : `<span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-amber-500/10 text-amber-300 border border-amber-500/20">Awaiting Save</span>`;
+
+                    const dateStr = u.welcomedAt ? new Date(u.welcomedAt).toLocaleString() : 'Recently';
+
+                    row.innerHTML = `
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-mono font-bold text-xs text-white">+${escapeHtml(u.id)}</span>
+                                <span class="text-xs text-slate-300">(${escapeHtml(u.name || 'User')})</span>
+                                ${statusBadge}
+                            </div>
+                            <div class="text-[11px] text-slate-500 flex items-center gap-2">
+                                <span>First contact: ${dateStr}</span>
+                                ${u.savedAt ? `<span class="text-emerald-400">• Confirmed: ${new Date(u.savedAt).toLocaleTimeString()}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 self-end sm:self-auto">
+                            <button onclick="resetWelcomedUser('${u.id}')" title="Reset this user so they can receive the welcome flow again for testing" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-amber-400"></i> Reset for Test
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(row);
+                });
+                lucide.createIcons();
+            } catch (err) {
+                console.error('Error loading welcomed users:', err);
+            }
+        }
+
+        async function resetWelcomedUser(userId) {
+            if (!confirm(`Reset user +${userId}? On their next message, they will receive the First-Time Welcome flow again.`)) return;
+            try {
+                const res = await fetch(`/api/welcome/users/${userId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    loadWelcomedUsers();
+                }
+            } catch (err) {
+                alert('Error resetting user: ' + err.message);
+            }
+        }
+
+        async function clearAllWelcomedUsers() {
+            if (!confirm('Clear all welcomed users history? All numbers will be treated as new users and receive the welcome flow.')) return;
+            try {
+                const res = await fetch('/api/welcome/users', { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    loadWelcomedUsers();
+                }
+            } catch (err) {
+                alert('Error clearing users: ' + err.message);
             }
         }
     </script>
