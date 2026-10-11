@@ -127,11 +127,17 @@ async function processUnifiedBundle(senderId) {
 
         let result = null;
 
+        // If user is replying to a WhatsApp status and smart status mode is enabled, provide the status context!
+        let aiQuery = unifiedText;
+        if (m.isStatusReply && m.statusQuotedText && kb.statusReplyMode !== 'ignore') {
+            aiQuery = `[Context: User is replying to our WhatsApp Status: "${m.statusQuotedText}"]\n${unifiedText}`;
+        }
+
         // If bundled images exist, send to Gemini vision with all images + unified text
         if (images.length > 0) {
-            result = await aiEngine.processImageMessage(images, 'image/jpeg', unifiedText, senderId, senderName);
-        } else if (unifiedText) {
-            result = await aiEngine.generateReply(unifiedText, senderId, senderName);
+            result = await aiEngine.processImageMessage(images, 'image/jpeg', aiQuery, senderId, senderName);
+        } else if (aiQuery) {
+            result = await aiEngine.generateReply(aiQuery, senderId, senderName);
         }
 
         if (result && result.reply) {
@@ -207,8 +213,9 @@ Module({
         const userPhone = m.userPhone || m.sender.split('@')[0];
 
         // 0. FIRST-TIME USER WELCOME & CONTACT SAVER FLOW
+        // Do NOT trigger welcome flow on status replies (prevents sending "Welcome to EKSU Bot" when someone simply reacts/replies to a status)
         const welcomeConfig = welcomeEngine.getConfig();
-        if (welcomeConfig.enabled) {
+        if (welcomeConfig.enabled && !m.isStatusReply) {
             const isEligibleChat = !welcomeConfig.dmOnly || !m.isGroup;
             if (isEligibleChat) {
                 // Case A: User has received welcome message and is confirming with "saved"
@@ -253,6 +260,12 @@ Module({
                     }
                 }
             }
+        }
+
+        // Check WhatsApp Status Reply mode: if configured to 'ignore', stay silent
+        if (m.isStatusReply && (kb.statusReplyMode === 'ignore')) {
+            console.log(`🔇 [Status Reply] Ignored reply to status from ${m.sender} as statusReplyMode is set to ignore.`);
+            return;
         }
 
         // If both Keyword Engine and AI are disabled, do nothing

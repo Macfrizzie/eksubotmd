@@ -154,9 +154,32 @@ async function serialize(sock, m) {
     m.reply = m.sendReply;
     m.download = async () => downloadMedia(m);
 
+    // Extract contextInfo (quoted message metadata)
+    const contextInfo = m.message?.extendedTextMessage?.contextInfo ||
+                        m.message?.imageMessage?.contextInfo ||
+                        m.message?.videoMessage?.contextInfo ||
+                        m.message?.audioMessage?.contextInfo ||
+                        m.message?.documentMessage?.contextInfo ||
+                        m.message?.stickerMessage?.contextInfo || null;
+
+    // Detect if this message is a direct reply to a WhatsApp Status (status@broadcast)
+    const quotedParticipant = contextInfo?.participant || '';
+    const quotedRemoteJid = contextInfo?.remoteJid || '';
+    m.isStatusReply = (quotedParticipant === 'status@broadcast' || quotedRemoteJid === 'status@broadcast');
+
+    // Extract quoted status content if present
+    m.statusQuotedText = '';
+    if (m.isStatusReply && contextInfo?.quotedMessage) {
+        const qm = contextInfo.quotedMessage;
+        m.statusQuotedText = qm.conversation || 
+                             qm.extendedTextMessage?.text || 
+                             qm.imageMessage?.caption || 
+                             qm.videoMessage?.caption || '';
+    }
+
     // Reply Object
-    if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
-        const q = m.message.extendedTextMessage.contextInfo;
+    if (contextInfo?.quotedMessage) {
+        const q = contextInfo;
         const msg = q.quotedMessage;
         const type = Object.keys(msg)[0];
         
@@ -165,6 +188,7 @@ async function serialize(sock, m) {
             jid: q.participant || m.jid, 
             sender: q.participant ? jidNormalizedUser(q.participant) : '', 
             fromMe: q.participant === device,
+            isStatus: m.isStatusReply,
             type: type,
             text: msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '',
             image: type === 'imageMessage', 
