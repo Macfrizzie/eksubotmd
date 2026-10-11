@@ -85,12 +85,49 @@ class WelcomeEngine {
         return { ...this.config };
     }
 
+    // Mark a user as already known/interacted with without sending them a welcome prompt
+    markKnownUser(senderId, senderName = 'User') {
+        const cleanId = this._normalizeId(senderId);
+        if (!cleanId) return;
+
+        if (!this.users[cleanId]) {
+            this.users[cleanId] = {
+                id: cleanId,
+                name: (senderName && senderName !== 'User' && senderName !== 'Friend' && senderName !== 'undefined') ? senderName.trim() : 'User',
+                status: 'known',
+                welcomedAt: new Date().toISOString(),
+                savedAt: new Date().toISOString()
+            };
+            this.saveUsers();
+        }
+    }
+
     // Check if this is a first-time user
     isFirstTimeUser(senderId) {
         if (!this.config.enabled) return false;
         const cleanId = this._normalizeId(senderId);
         if (!cleanId) return false;
-        return !this.users[cleanId];
+
+        // 1. If already recorded in welcomed_users.json
+        if (this.users[cleanId]) return false;
+
+        // 2. Check if user already exists in conversations.json (has chatted before)
+        try {
+            const convFile = path.join(__dirname, '../conversations.json');
+            if (fs.existsSync(convFile)) {
+                const convData = JSON.parse(fs.readFileSync(convFile, 'utf8') || '{}');
+                for (const key of Object.keys(convData)) {
+                    const normKey = this._normalizeId(key);
+                    if (normKey === cleanId && (convData[key]?.history?.length > 0 || convData[key]?.lastInteraction)) {
+                        // User has interacted before - mark known and return false
+                        this.markKnownUser(senderId);
+                        return false;
+                    }
+                }
+            }
+        } catch (e) {}
+
+        return true;
     }
 
     // Check if user has received the welcome message but not yet confirmed saving

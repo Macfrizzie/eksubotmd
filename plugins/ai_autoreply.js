@@ -183,6 +183,7 @@ async function processUnifiedBundle(senderId) {
                 }
             }
             analytics.recordMessage(senderId, true);
+            welcomeEngine.markKnownUser(senderId, senderName);
 
             // Handle Smart Human Handoff Alert to Owner
             if (result.handoff) {
@@ -246,8 +247,13 @@ Module({
         const userPhone = m.userPhone || m.sender.split('@')[0];
 
         // 0. FIRST-TIME USER WELCOME & CONTACT SAVER FLOW
-        // Do NOT trigger welcome flow on status replies (prevents sending "Welcome to EKSU Bot" when someone simply reacts/replies to a status)
+        // If user replies to a status, mark them as a known user so subsequent normal chats never trigger the welcome prompt!
+        if (m.isStatusReply) {
+            welcomeEngine.markKnownUser(m.sender, senderName);
+        }
+
         const welcomeConfig = welcomeEngine.getConfig();
+        // Strictly only trigger welcome flow on non-status replies in eligible chats
         if (welcomeConfig.enabled && !m.isStatusReply) {
             const isEligibleChat = !welcomeConfig.dmOnly || !m.isGroup;
             if (isEligibleChat) {
@@ -276,7 +282,9 @@ Module({
                 }
 
                 // Case B: Brand new user sending their very first message
-                if (welcomeEngine.isFirstTimeUser(m.sender)) {
+                // Double check user history: if user has any existing chat history in aiEngine, they are NOT a first time user!
+                const existingHistory = aiEngine.getUserHistory(m.sender);
+                if ((!existingHistory || existingHistory.length === 0) && welcomeEngine.isFirstTimeUser(m.sender)) {
                     welcomeEngine.recordFirstWelcome(m.sender, senderName);
                     const welcomeMsg = welcomeEngine.getWelcomeMessage(senderName, userPhone);
                     if (welcomeMsg) {
@@ -291,6 +299,9 @@ Module({
                         analytics.recordMessage(m.sender, true);
                         return;
                     }
+                } else if (welcomeEngine.isFirstTimeUser(m.sender)) {
+                    // User already has history, so ensure they are marked as known
+                    welcomeEngine.markKnownUser(m.sender, senderName);
                 }
             }
         }
