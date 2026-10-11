@@ -195,16 +195,54 @@ app.post('/api/ai/toggle', (req, res) => {
     }
 });
 
+// Upload media for Knowledge Base (Images, PDFs, Documents)
+const uploadsDir = path.join(__dirname, '../public/uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+app.post('/api/knowledge/upload-media', (req, res) => {
+    try {
+        const { fileName, base64Data, mimeType } = req.body;
+        if (!base64Data || !fileName) {
+            return res.status(400).json({ error: 'Missing fileName or base64Data' });
+        }
+
+        // Clean file name
+        const ext = path.extname(fileName) || (mimeType?.includes('pdf') ? '.pdf' : '.jpg');
+        const cleanBase = path.basename(fileName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const safeName = `${cleanBase}_${Date.now().toString(36)}${ext}`;
+        const filePath = path.join(uploadsDir, safeName);
+
+        // Strip data:image/...;base64, header if present
+        const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, '');
+        const buffer = Buffer.from(cleanBase64, 'base64');
+        fs.writeFileSync(filePath, buffer);
+
+        const isDoc = ext.toLowerCase() === '.pdf' || mimeType?.includes('pdf') || mimeType?.includes('document');
+        const mediaType = isDoc ? 'document' : 'image';
+        const mediaUrl = `/uploads/${safeName}`;
+
+        res.json({
+            success: true,
+            mediaUrl,
+            mediaType,
+            mediaFileName: fileName
+        });
+    } catch (err) {
+        console.error('Upload media error:', err);
+        res.status(500).json({ error: 'Failed to upload media: ' + err.message });
+    }
+});
+
 app.post('/api/knowledge/entry', (req, res) => {
-    const { title, content } = req.body;
+    const { title, content, mediaUrl, mediaType, mediaFileName } = req.body;
     if (!title || !content) return res.status(400).json({ error: 'Title and content required' });
-    const entry = aiEngine.addEntry(title, content);
+    const entry = aiEngine.addEntry(title, content, { mediaUrl, mediaType, mediaFileName });
     res.json({ success: true, entry });
 });
 
 app.put('/api/knowledge/entry/:id', (req, res) => {
-    const { title, content } = req.body;
-    const entry = aiEngine.updateEntry(req.params.id, title, content);
+    const { title, content, mediaUrl, mediaType, mediaFileName } = req.body;
+    const entry = aiEngine.updateEntry(req.params.id, title, content, { mediaUrl, mediaType, mediaFileName });
     if (!entry) return res.status(404).json({ error: 'Entry not found' });
     res.json({ success: true, entry });
 });

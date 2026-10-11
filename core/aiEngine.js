@@ -377,20 +377,31 @@ class AIEngine {
         return this.kb;
     }
 
-    addEntry(title, content) {
+    addEntry(title, content, media = {}) {
         const id = 'kb_' + Date.now().toString(36);
-        const newEntry = { id, title, content, updatedAt: new Date().toISOString() };
+        const newEntry = { 
+            id, 
+            title, 
+            content, 
+            mediaUrl: media.mediaUrl || null,
+            mediaType: media.mediaType || null,
+            mediaFileName: media.mediaFileName || null,
+            updatedAt: new Date().toISOString() 
+        };
         this.kb.entries.push(newEntry);
         this.saveKB();
         this.responseCache.clear();
         return newEntry;
     }
 
-    updateEntry(id, title, content) {
+    updateEntry(id, title, content, media = {}) {
         const entry = this.kb.entries.find(e => e.id === id);
         if (entry) {
             entry.title = title;
             entry.content = content;
+            if (media.mediaUrl !== undefined) entry.mediaUrl = media.mediaUrl;
+            if (media.mediaType !== undefined) entry.mediaType = media.mediaType;
+            if (media.mediaFileName !== undefined) entry.mediaFileName = media.mediaFileName;
             entry.updatedAt = new Date().toISOString();
             this.saveKB();
             this.responseCache.clear();
@@ -479,7 +490,13 @@ class AIEngine {
     buildOptimizedPrompt(userQuery, senderName = 'Friend') {
         const relevantEntries = this.getRelevantEntries(userQuery);
         const kbContext = relevantEntries
-            .map(e => `[${e.title}]\n${this._truncateContent(e.content, 1800)}`)
+            .map(e => {
+                let entryText = `[${e.title}]\n${this._truncateContent(e.content, 1800)}`;
+                if (e.mediaUrl) {
+                    entryText += `\n[ATTACHED MEDIA FILE: ${e.mediaUrl} (${e.mediaType || 'media'})]`;
+                }
+                return entryText;
+            })
             .join('\n\n');
 
         const cleanName = (senderName && senderName !== 'Friend' && senderName !== 'User' && senderName !== 'undefined') ? senderName.trim() : null;
@@ -502,8 +519,9 @@ CRITICAL INSTRUCTIONS:
 1. BE DIRECT: Give a straightforward, helpful answer to the user's inquiry immediately. Do NOT be vague or evasive.
 2. REMEMBER CHAT FACTS (NEVER REPEAT QUESTIONS): Look carefully at the previous messages in this conversation. If the user has already mentioned their course (e.g. Entrepreneurship), JAMB score, screening score, registration date, or CAPS status, NEVER ask for it again. Remember and build upon what they already stated.
 3. DO NOT END EVERY MESSAGE WITH A QUESTION: Give clear information without constantly quizzing or interrogating the user with counter-questions.
-4. DO NOT APPEND 'SAVE CONTACT' REMINDERS: Never tell the user to save the contact as 'EKSU Bot' or reply 'SAVED' in normal responses.
-5. If the question cannot be answered from the KB or if the user asks for a human/admin, state that an admin will assist them and end your response with: [HANDOFF_NEEDED: reason].`;
+4. ATTACHED MEDIA DELIVERY: If a matching Knowledge Base document has an [ATTACHED MEDIA FILE: <url>], and the user asks for the flyer, timetable, form, document, slip, checklist, photo, or visual guide related to this topic, append: [SEND_MEDIA: <url>] at the very end of your response.
+5. DO NOT APPEND 'SAVE CONTACT' REMINDERS: Never tell the user to save the contact as 'EKSU Bot' or reply 'SAVED' in normal responses.
+6. If the question cannot be answered from the KB or if the user asks for a human/admin, state that an admin will assist them and end your response with: [HANDOFF_NEEDED: reason].`;
     }
 
     getUserHistory(senderId) {
@@ -545,7 +563,7 @@ CRITICAL INSTRUCTIONS:
         if (!isTest && this.responseCache.has(cacheKey)) {
             const cached = this.responseCache.get(cacheKey);
             if (Date.now() < cached.expiresAt) {
-                return { reply: cached.reply };
+                return { reply: cached.reply, media: cached.media || null };
             }
         }
 
@@ -567,16 +585,32 @@ CRITICAL INSTRUCTIONS:
 
             const latencyMs = Date.now() - startTime;
 
+            // Check for Attached Media dispatch trigger: [SEND_MEDIA: /uploads/...]
+            let mediaAttachment = null;
+            let cleanReply = rawReply;
+            const mediaMatch = rawReply.match(/\[SEND_MEDIA:\s*([^\]]+)\]/i);
+            if (mediaMatch) {
+                const targetMediaUrl = mediaMatch[1].trim();
+                cleanReply = cleanReply.replace(/\[SEND_MEDIA:\s*[^\]]+\]/gi, '').trim();
+                
+                // Find corresponding KB entry to get media metadata
+                const matchedEntry = (this.kb.entries || []).find(e => e.mediaUrl === targetMediaUrl);
+                mediaAttachment = {
+                    url: targetMediaUrl,
+                    type: matchedEntry?.mediaType || (targetMediaUrl.endsWith('.pdf') ? 'document' : 'image'),
+                    fileName: matchedEntry?.mediaFileName || path.basename(targetMediaUrl)
+                };
+            }
+
             // Check for Smart Human Handoff trigger
             let needsHandoff = false;
             let handoffReason = 'Not found in knowledge base';
-            let cleanReply = rawReply;
 
-            const handoffMatch = rawReply.match(/\[HANDOFF_NEEDED(?::\s*([^\]]+))?\]/i);
+            const handoffMatch = cleanReply.match(/\[HANDOFF_NEEDED(?::\s*([^\]]+))?\]/i);
             if (handoffMatch) {
                 needsHandoff = true;
                 if (handoffMatch[1]) handoffReason = handoffMatch[1].trim();
-                cleanReply = rawReply.replace(/\[HANDOFF_NEEDED(?::\s*[^\]]+)?\]/gi, '').trim();
+                cleanReply = cleanReply.replace(/\[HANDOFF_NEEDED(?::\s*[^\]]+)?\]/gi, '').trim();
             }
 
             // Also detect if model text promised to connect user to human
@@ -605,6 +639,7 @@ CRITICAL INSTRUCTIONS:
                 if (!needsHandoff) {
                     this.responseCache.set(cacheKey, {
                         reply: cleanReply,
+                        media: mediaAttachment,
                         expiresAt: Date.now() + 60 * 60 * 1000
                     });
                 } else {
@@ -618,6 +653,7 @@ CRITICAL INSTRUCTIONS:
 
             return {
                 reply: cleanReply,
+                media: mediaAttachment,
                 handoff: needsHandoff ? { reason: handoffReason, query: cleanQuery } : null
             };
         } catch (error) {

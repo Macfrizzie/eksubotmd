@@ -142,9 +142,32 @@ async function processUnifiedBundle(senderId) {
 
         if (result && result.reply) {
             try {
-                await m.reply(result.reply);
+                // If AI dispatched an attached media file (image, PDF, flyer, guide)
+                if (result.media && result.media.url) {
+                    const localPath = path.join(__dirname, '../public', result.media.url);
+                    if (fs.existsSync(localPath)) {
+                        const fileBuf = fs.readFileSync(localPath);
+                        if (result.media.type === 'document' || result.media.url.endsWith('.pdf')) {
+                            await m.client.sendMessage(m.jid, {
+                                document: fileBuf,
+                                mimetype: 'application/pdf',
+                                fileName: result.media.fileName || path.basename(localPath),
+                                caption: result.reply
+                            });
+                        } else {
+                            await m.client.sendMessage(m.jid, {
+                                image: fileBuf,
+                                caption: result.reply
+                            });
+                        }
+                    } else {
+                        await m.reply(result.reply);
+                    }
+                } else {
+                    await m.reply(result.reply);
+                }
             } catch (replyErr) {
-                console.warn('⚠️ [AI AutoReply] m.reply fallback triggered:', replyErr.message);
+                console.warn('⚠️ [AI AutoReply] reply fallback triggered:', replyErr.message);
                 if (m.client?.sendMessage) {
                     await m.client.sendMessage(m.jid, { text: result.reply });
                 }
