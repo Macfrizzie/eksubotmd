@@ -234,15 +234,15 @@ app.post('/api/knowledge/upload-media', (req, res) => {
 });
 
 app.post('/api/knowledge/entry', (req, res) => {
-    const { title, content, mediaUrl, mediaType, mediaFileName } = req.body;
+    const { title, content, mediaUrl, mediaType, mediaFileName, mediaFiles } = req.body;
     if (!title || !content) return res.status(400).json({ error: 'Title and content required' });
-    const entry = aiEngine.addEntry(title, content, { mediaUrl, mediaType, mediaFileName });
+    const entry = aiEngine.addEntry(title, content, { mediaUrl, mediaType, mediaFileName, mediaFiles });
     res.json({ success: true, entry });
 });
 
 app.put('/api/knowledge/entry/:id', (req, res) => {
-    const { title, content, mediaUrl, mediaType, mediaFileName } = req.body;
-    const entry = aiEngine.updateEntry(req.params.id, title, content, { mediaUrl, mediaType, mediaFileName });
+    const { title, content, mediaUrl, mediaType, mediaFileName, mediaFiles } = req.body;
+    const entry = aiEngine.updateEntry(req.params.id, title, content, { mediaUrl, mediaType, mediaFileName, mediaFiles });
     if (!entry) return res.status(404).json({ error: 'Entry not found' });
     res.json({ success: true, entry });
 });

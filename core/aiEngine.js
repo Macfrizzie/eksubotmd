@@ -379,13 +379,25 @@ class AIEngine {
 
     addEntry(title, content, media = {}) {
         const id = 'kb_' + Date.now().toString(36);
+        let mediaFiles = [];
+        if (Array.isArray(media.mediaFiles) && media.mediaFiles.length > 0) {
+            mediaFiles = media.mediaFiles;
+        } else if (media.mediaUrl) {
+            mediaFiles = [{
+                url: media.mediaUrl,
+                type: media.mediaType || (media.mediaUrl.endsWith('.pdf') ? 'document' : 'image'),
+                fileName: media.mediaFileName || path.basename(media.mediaUrl)
+            }];
+        }
+
         const newEntry = { 
             id, 
             title, 
             content, 
-            mediaUrl: media.mediaUrl || null,
-            mediaType: media.mediaType || null,
-            mediaFileName: media.mediaFileName || null,
+            mediaFiles,
+            mediaUrl: mediaFiles[0]?.url || media.mediaUrl || null,
+            mediaType: mediaFiles[0]?.type || media.mediaType || null,
+            mediaFileName: mediaFiles[0]?.fileName || media.mediaFileName || null,
             updatedAt: new Date().toISOString() 
         };
         this.kb.entries.push(newEntry);
@@ -399,9 +411,21 @@ class AIEngine {
         if (entry) {
             entry.title = title;
             entry.content = content;
-            if (media.mediaUrl !== undefined) entry.mediaUrl = media.mediaUrl;
-            if (media.mediaType !== undefined) entry.mediaType = media.mediaType;
-            if (media.mediaFileName !== undefined) entry.mediaFileName = media.mediaFileName;
+            if (Array.isArray(media.mediaFiles)) {
+                entry.mediaFiles = media.mediaFiles;
+                entry.mediaUrl = media.mediaFiles[0]?.url || null;
+                entry.mediaType = media.mediaFiles[0]?.type || null;
+                entry.mediaFileName = media.mediaFiles[0]?.fileName || null;
+            } else if (media.mediaUrl !== undefined) {
+                entry.mediaUrl = media.mediaUrl;
+                entry.mediaType = media.mediaType;
+                entry.mediaFileName = media.mediaFileName;
+                entry.mediaFiles = media.mediaUrl ? [{
+                    url: media.mediaUrl,
+                    type: media.mediaType || (media.mediaUrl.endsWith('.pdf') ? 'document' : 'image'),
+                    fileName: media.mediaFileName || path.basename(media.mediaUrl)
+                }] : [];
+            }
             entry.updatedAt = new Date().toISOString();
             this.saveKB();
             this.responseCache.clear();
@@ -425,10 +449,10 @@ class AIEngine {
 
         const clean = (userQuery || '').toLowerCase().trim();
 
-        // 1. Check for simple greetings & pleasantries
-        const isGreeting = /^(hi|hello|hey|yo|sup|good (morning|afternoon|evening)|howdy|hola)(\s+[a-z]+)?$/i.test(clean);
-        if (isGreeting) {
-            // For greetings, only return the welcome overview entry to avoid token bloat
+        // 1. Check for pure greetings & pleasantries (ONLY if query contains NO substantive question)
+        const isPureGreeting = /^(hi|hello|hey|yo|sup|good (morning|afternoon|evening)|howdy|hola|greetings)(\s+[a-z]+)?[\s!.]*$/i.test(clean);
+        if (isPureGreeting) {
+            // For greetings ONLY, return the welcome overview entry to avoid token bloat
             const welcome = entries.find(e => e.id === 'kb_welcome' || (e.title && e.title.toLowerCase().includes('welcome')));
             return welcome ? [welcome] : entries.slice(0, 1);
         }
@@ -492,8 +516,13 @@ class AIEngine {
         const kbContext = relevantEntries
             .map(e => {
                 let entryText = `[${e.title}]\n${this._truncateContent(e.content, 1800)}`;
-                if (e.mediaUrl) {
-                    entryText += `\n[ATTACHED MEDIA FILE: ${e.mediaUrl} (${e.mediaType || 'media'})]`;
+                const files = Array.isArray(e.mediaFiles) && e.mediaFiles.length > 0 
+                    ? e.mediaFiles 
+                    : (e.mediaUrl ? [{ url: e.mediaUrl, type: e.mediaType, fileName: e.mediaFileName }] : []);
+
+                if (files.length > 0) {
+                    const fileLines = files.map(f => `  - [ATTACHED MEDIA FILE: ${f.url} (${f.type || 'media'}) - ${f.fileName || 'file'}]`).join('\n');
+                    entryText += `\nAttached Files:\n${fileLines}`;
                 }
                 return entryText;
             })
@@ -516,10 +545,10 @@ ${cleanName ? `\nUser's name: ${cleanName}` : ''}${welcomeInstruction}
 ${kbContext || 'No matching info.'}
 ==========
 CRITICAL INSTRUCTIONS:
-1. BE DIRECT: Give a straightforward, helpful answer to the user's inquiry immediately. Do NOT be vague or evasive.
+1. BE DIRECT: Give a straightforward, helpful answer to the user's inquiry immediately. Do NOT be vague or evasive. If the user greeted and also asked a question (e.g. "Good morning, is batch 3 out?"), answer their question directly!
 2. REMEMBER CHAT FACTS (NEVER REPEAT QUESTIONS): Look carefully at the previous messages in this conversation. If the user has already mentioned their course (e.g. Entrepreneurship), JAMB score, screening score, registration date, or CAPS status, NEVER ask for it again. Remember and build upon what they already stated.
 3. DO NOT END EVERY MESSAGE WITH A QUESTION: Give clear information without constantly quizzing or interrogating the user with counter-questions.
-4. ATTACHED MEDIA DELIVERY: If a matching Knowledge Base document has an [ATTACHED MEDIA FILE: <url>], and the user asks for the flyer, timetable, form, document, slip, checklist, photo, or visual guide related to this topic, append: [SEND_MEDIA: <url>] at the very end of your response.
+4. ATTACHED MEDIA DELIVERY: If a matching Knowledge Base document has [ATTACHED MEDIA FILE: <url>], and the user asks for the flyer, timetable, form, document, slip, checklist, photo, or visual guide related to this topic, append: [SEND_MEDIA: <url>] at the very end of your response. (You can append multiple [SEND_MEDIA: <url>] tags if multiple files apply).
 5. DO NOT APPEND 'SAVE CONTACT' REMINDERS: Never tell the user to save the contact as 'EKSU Bot' or reply 'SAVED' in normal responses.
 6. If the question cannot be answered from the KB or if the user asks for a human/admin, state that an admin will assist them and end your response with: [HANDOFF_NEEDED: reason].`;
     }
@@ -563,7 +592,7 @@ CRITICAL INSTRUCTIONS:
         if (!isTest && this.responseCache.has(cacheKey)) {
             const cached = this.responseCache.get(cacheKey);
             if (Date.now() < cached.expiresAt) {
-                return { reply: cached.reply, media: cached.media || null };
+                return { reply: cached.reply, media: cached.media || null, mediaList: cached.mediaList || [] };
             }
         }
 
@@ -585,22 +614,30 @@ CRITICAL INSTRUCTIONS:
 
             const latencyMs = Date.now() - startTime;
 
-            // Check for Attached Media dispatch trigger: [SEND_MEDIA: /uploads/...]
-            let mediaAttachment = null;
+            // Check for Attached Media dispatch triggers: [SEND_MEDIA: /uploads/...]
+            let mediaList = [];
             let cleanReply = rawReply;
-            const mediaMatch = rawReply.match(/\[SEND_MEDIA:\s*([^\]]+)\]/i);
-            if (mediaMatch) {
-                const targetMediaUrl = mediaMatch[1].trim();
-                cleanReply = cleanReply.replace(/\[SEND_MEDIA:\s*[^\]]+\]/gi, '').trim();
-                
-                // Find corresponding KB entry to get media metadata
-                const matchedEntry = (this.kb.entries || []).find(e => e.mediaUrl === targetMediaUrl);
-                mediaAttachment = {
-                    url: targetMediaUrl,
-                    type: matchedEntry?.mediaType || (targetMediaUrl.endsWith('.pdf') ? 'document' : 'image'),
-                    fileName: matchedEntry?.mediaFileName || path.basename(targetMediaUrl)
-                };
+            const mediaRegex = /\[SEND_MEDIA:\s*([^\]]+)\]/gi;
+            let mMatch;
+            while ((mMatch = mediaRegex.exec(rawReply)) !== null) {
+                const targetUrl = mMatch[1].trim();
+                let foundFile = null;
+                for (const entry of (this.kb.entries || [])) {
+                    const files = Array.isArray(entry.mediaFiles) && entry.mediaFiles.length > 0 
+                        ? entry.mediaFiles 
+                        : (entry.mediaUrl ? [{ url: entry.mediaUrl, type: entry.mediaType, fileName: entry.mediaFileName }] : []);
+                    const hit = files.find(f => f.url === targetUrl);
+                    if (hit) { foundFile = hit; break; }
+                }
+
+                mediaList.push({
+                    url: targetUrl,
+                    type: foundFile?.type || (targetUrl.endsWith('.pdf') ? 'document' : 'image'),
+                    fileName: foundFile?.fileName || path.basename(targetUrl)
+                });
             }
+
+            cleanReply = cleanReply.replace(/\[SEND_MEDIA:\s*[^\]]+\]/gi, '').trim();
 
             // Check for Smart Human Handoff trigger
             let needsHandoff = false;
@@ -639,7 +676,8 @@ CRITICAL INSTRUCTIONS:
                 if (!needsHandoff) {
                     this.responseCache.set(cacheKey, {
                         reply: cleanReply,
-                        media: mediaAttachment,
+                        media: mediaList[0] || null,
+                        mediaList,
                         expiresAt: Date.now() + 60 * 60 * 1000
                     });
                 } else {
@@ -653,7 +691,8 @@ CRITICAL INSTRUCTIONS:
 
             return {
                 reply: cleanReply,
-                media: mediaAttachment,
+                media: mediaList[0] || null,
+                mediaList,
                 handoff: needsHandoff ? { reason: handoffReason, query: cleanQuery } : null
             };
         } catch (error) {

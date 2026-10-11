@@ -169,12 +169,26 @@ async function serialize(sock, m) {
 
     // Extract quoted status content if present
     m.statusQuotedText = '';
+    m.statusQuotedType = '';
     if (m.isStatusReply && contextInfo?.quotedMessage) {
         const qm = contextInfo.quotedMessage;
-        m.statusQuotedText = qm.conversation || 
-                             qm.extendedTextMessage?.text || 
-                             qm.imageMessage?.caption || 
-                             qm.videoMessage?.caption || '';
+        const qType = Object.keys(qm)[0] || '';
+        m.statusQuotedType = qType;
+
+        const rawStatusCaption = qm.conversation || 
+                                 qm.extendedTextMessage?.text || 
+                                 qm.videoMessage?.caption || 
+                                 qm.imageMessage?.caption || '';
+
+        if (rawStatusCaption && rawStatusCaption.trim()) {
+            m.statusQuotedText = rawStatusCaption.trim();
+        } else if (qType === 'videoMessage') {
+            m.statusQuotedText = '[WhatsApp Video Status Upload]';
+        } else if (qType === 'imageMessage') {
+            m.statusQuotedText = '[WhatsApp Image/Photo Status Upload]';
+        } else {
+            m.statusQuotedText = '[WhatsApp Status Post]';
+        }
     }
 
     // Reply Object

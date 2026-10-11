@@ -142,26 +142,36 @@ async function processUnifiedBundle(senderId) {
 
         if (result && result.reply) {
             try {
-                // If AI dispatched an attached media file (image, PDF, flyer, guide)
-                if (result.media && result.media.url) {
-                    const localPath = path.join(__dirname, '../public', result.media.url);
-                    if (fs.existsSync(localPath)) {
-                        const fileBuf = fs.readFileSync(localPath);
-                        if (result.media.type === 'document' || result.media.url.endsWith('.pdf')) {
-                            await m.client.sendMessage(m.jid, {
-                                document: fileBuf,
-                                mimetype: 'application/pdf',
-                                fileName: result.media.fileName || path.basename(localPath),
-                                caption: result.reply
-                            });
-                        } else {
-                            await m.client.sendMessage(m.jid, {
-                                image: fileBuf,
-                                caption: result.reply
-                            });
+                const toSendMedia = Array.isArray(result.mediaList) && result.mediaList.length > 0 
+                    ? result.mediaList 
+                    : (result.media?.url ? [result.media] : []);
+
+                if (toSendMedia.length > 0) {
+                    for (let idx = 0; idx < toSendMedia.length; idx++) {
+                        const med = toSendMedia[idx];
+                        const localPath = path.join(__dirname, '../public', med.url);
+                        if (fs.existsSync(localPath)) {
+                            const fileBuf = fs.readFileSync(localPath);
+                            const caption = idx === 0 ? result.reply : '';
+                            if (med.type === 'document' || med.url.endsWith('.pdf')) {
+                                await m.client.sendMessage(m.jid, {
+                                    document: fileBuf,
+                                    mimetype: 'application/pdf',
+                                    fileName: med.fileName || path.basename(localPath),
+                                    caption
+                                });
+                            } else {
+                                await m.client.sendMessage(m.jid, {
+                                    image: fileBuf,
+                                    caption
+                                });
+                            }
+                            if (idx < toSendMedia.length - 1) {
+                                await new Promise(r => setTimeout(r, 600));
+                            }
+                        } else if (idx === 0) {
+                            await m.reply(result.reply);
                         }
-                    } else {
-                        await m.reply(result.reply);
                     }
                 } else {
                     await m.reply(result.reply);

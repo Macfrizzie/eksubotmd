@@ -1201,39 +1201,26 @@
                 <label class="text-xs text-slate-400">Knowledge Content</label>
                 <textarea id="modalEntryContent" rows="5" placeholder="Provide factual details, steps, FAQs, or description..." class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 leading-relaxed"></textarea>
             </div>
-            <!-- Media Attachment Section (Image / Flyer / PDF Document) -->
+            <!-- Media Attachment Section (Support Multiple Images / Flyers / PDFs) -->
             <div class="border border-slate-800 rounded-xl p-3.5 bg-slate-950/60 space-y-2.5">
                 <div class="flex items-center justify-between">
                     <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                        <i data-lucide="paperclip" class="w-3.5 h-3.5 text-emerald-400"></i> Attached Media (Image / Flyer / PDF)
+                        <i data-lucide="paperclip" class="w-3.5 h-3.5 text-emerald-400"></i> Attached Media Files (Multiple Images / PDFs)
                     </label>
-                    <span class="text-[10px] text-slate-400">Auto-sent on student request</span>
+                    <span class="text-[10px] text-slate-400" id="modalMediaCountBadge">0 files attached</span>
                 </div>
-                <input type="hidden" id="modalEntryMediaUrl">
-                <input type="hidden" id="modalEntryMediaType">
-                <input type="hidden" id="modalEntryMediaFileName">
 
                 <div class="flex items-center gap-2">
-                    <input type="file" id="modalEntryFileInput" accept="image/*,.pdf" onchange="handleKBMediaSelect(this)" class="hidden">
+                    <input type="file" id="modalEntryFileInput" accept="image/*,.pdf" multiple onchange="handleKBMediaSelect(this)" class="hidden">
                     <button type="button" onclick="document.getElementById('modalEntryFileInput').click()" id="modalUploadBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
-                        <i data-lucide="upload" class="w-3.5 h-3.5 text-emerald-400"></i> Upload File
+                        <i data-lucide="upload" class="w-3.5 h-3.5 text-emerald-400"></i> + Add Media Files
                     </button>
-                    <span class="text-[11px] text-slate-400" id="modalUploadStatus">PNG, JPG, or PDF (Max 15MB)</span>
+                    <span class="text-[11px] text-slate-400" id="modalUploadStatus">Select images or PDFs (up to 15MB each)</span>
                 </div>
 
-                <!-- Media Preview Card -->
-                <div id="modalMediaPreviewCard" class="hidden items-center justify-between p-2 rounded-lg bg-slate-900 border border-emerald-500/30">
-                    <div class="flex items-center gap-2 overflow-hidden">
-                        <img id="modalMediaThumb" src="" alt="preview" class="w-8 h-8 rounded object-cover border border-slate-700 hidden">
-                        <i id="modalMediaDocIcon" data-lucide="file-text" class="w-6 h-6 text-emerald-400 hidden"></i>
-                        <div class="truncate">
-                            <div id="modalMediaFileNameDisplay" class="text-xs font-medium text-slate-200 truncate">file.pdf</div>
-                            <span id="modalMediaTypeBadge" class="text-[9px] font-mono uppercase bg-emerald-500/20 text-emerald-400 px-1 py-0.2 rounded">document</span>
-                        </div>
-                    </div>
-                    <button type="button" onclick="clearKBMediaAttachment()" title="Remove media" class="p-1 text-rose-400 hover:text-rose-300 rounded hover:bg-slate-800 ml-2">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                    </button>
+                <!-- Attached Media Items Container -->
+                <div id="modalMediaFilesList" class="space-y-1.5 max-h-48 overflow-y-auto">
+                    <!-- Populated dynamically -->
                 </div>
             </div>
             <div class="flex justify-end gap-3 pt-2">
@@ -1809,18 +1796,26 @@
                 card.className = 'bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-slate-700 transition space-y-3';
 
                 let mediaBadge = '';
-                if (e.mediaUrl) {
-                    const isDoc = e.mediaType === 'document' || e.mediaUrl.endsWith('.pdf');
-                    const iconName = isDoc ? 'file-text' : 'image';
-                    const label = isDoc ? 'PDF Doc' : 'Image';
-                    mediaBadge = `
-                        <div class="mt-2.5 flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-emerald-500/30 text-xs">
-                            <i data-lucide="${iconName}" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
-                            <span class="text-slate-300 font-medium truncate flex-1">${escapeHtml(e.mediaFileName || label)}</span>
-                            <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">${label}</span>
-                            <a href="${e.mediaUrl}" target="_blank" class="text-emerald-400 hover:text-emerald-300 text-xs underline font-semibold ml-1">View</a>
-                        </div>
-                    `;
+                const files = Array.isArray(e.mediaFiles) && e.mediaFiles.length > 0
+                    ? e.mediaFiles
+                    : (e.mediaUrl ? [{ url: e.mediaUrl, type: e.mediaType, fileName: e.mediaFileName }] : []);
+
+                if (files.length > 0) {
+                    const fileBadges = files.map(f => {
+                        const isDoc = f.type === 'document' || (f.url && f.url.endsWith('.pdf'));
+                        const iconName = isDoc ? 'file-text' : 'image';
+                        const label = isDoc ? 'PDF Doc' : 'Image';
+                        return `
+                            <div class="flex items-center gap-2 p-1.5 px-2.5 rounded-lg bg-slate-950 border border-emerald-500/30 text-xs">
+                                <i data-lucide="${iconName}" class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0"></i>
+                                <span class="text-slate-300 font-medium truncate flex-1">${escapeHtml(f.fileName || label)}</span>
+                                <span class="text-[9px] uppercase font-mono px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300">${label}</span>
+                                <a href="${f.url}" target="_blank" class="text-emerald-400 hover:text-emerald-300 text-xs underline font-semibold ml-1">View</a>
+                            </div>
+                        `;
+                    }).join('');
+
+                    mediaBadge = `<div class="mt-2.5 space-y-1.5">${fileBadges}</div>`;
                 }
 
                 card.innerHTML = `
@@ -1923,61 +1918,130 @@
             lucide.createIcons();
         }
 
+        // MODAL MANAGEMENT & MULTIPLE MEDIA UPLOADS
+        let currentModalMediaFiles = [];
+
+        function renderModalMediaList() {
+            const list = document.getElementById('modalMediaFilesList');
+            const countBadge = document.getElementById('modalMediaCountBadge');
+            if (countBadge) {
+                countBadge.textContent = `${currentModalMediaFiles.length} file${currentModalMediaFiles.length === 1 ? '' : 's'} attached`;
+            }
+
+            if (!list) return;
+            list.innerHTML = '';
+
+            if (currentModalMediaFiles.length === 0) {
+                list.innerHTML = `<div class="p-2 text-center text-slate-500 text-xs italic">No media files attached yet.</div>`;
+                return;
+            }
+
+            currentModalMediaFiles.forEach((file, idx) => {
+                const isDoc = file.type === 'document' || file.url.endsWith('.pdf');
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-emerald-500/30 text-xs';
+                row.innerHTML = `
+                    <div class="flex items-center gap-2 overflow-hidden flex-1">
+                        ${isDoc 
+                            ? `<i data-lucide="file-text" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>` 
+                            : `<img src="${file.url}" alt="thumb" class="w-6 h-6 rounded object-cover border border-slate-700 flex-shrink-0">`
+                        }
+                        <span class="text-slate-200 font-medium truncate flex-1">${escapeHtml(file.fileName || 'file')}</span>
+                        <span class="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 flex-shrink-0">${isDoc ? 'document' : 'image'}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 ml-2">
+                        <a href="${file.url}" target="_blank" class="text-emerald-400 hover:text-emerald-300 text-xs underline font-semibold px-1">View</a>
+                        <button type="button" onclick="removeKBModalMedia(${idx})" title="Remove this file" class="p-1 text-rose-400 hover:text-rose-300 rounded hover:bg-slate-800">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(row);
+            });
+            lucide.createIcons();
+        }
+
+        function removeKBModalMedia(idx) {
+            currentModalMediaFiles.splice(idx, 1);
+            renderModalMediaList();
+        }
+
+        function setKBModalMedia(mediaFiles) {
+            if (Array.isArray(mediaFiles)) {
+                currentModalMediaFiles = [...mediaFiles];
+            } else if (mediaFiles && typeof mediaFiles === 'object' && mediaFiles.url) {
+                currentModalMediaFiles = [mediaFiles];
+            } else {
+                currentModalMediaFiles = [];
+            }
+            renderModalMediaList();
+        }
+
         function clearKBMediaAttachment() {
-            setKBModalMedia('', '', '');
+            currentModalMediaFiles = [];
             const input = document.getElementById('modalEntryFileInput');
             if (input) input.value = '';
-            document.getElementById('modalUploadStatus').textContent = 'PNG, JPG, or PDF (Max 15MB)';
+            document.getElementById('modalUploadStatus').textContent = 'Select images or PDFs (up to 15MB each)';
+            renderModalMediaList();
         }
 
         async function handleKBMediaSelect(fileInput) {
-            const file = fileInput.files?.[0];
-            if (!file) return;
+            const files = fileInput.files;
+            if (!files || files.length === 0) return;
 
             const status = document.getElementById('modalUploadStatus');
             const btn = document.getElementById('modalUploadBtn');
             const origHtml = btn.innerHTML;
 
-            btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Uploading...`;
+            btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Uploading ${files.length} file(s)...`;
             btn.disabled = true;
-            status.textContent = `Uploading ${file.name}...`;
 
             try {
-                const reader = new FileReader();
-                reader.onload = async () => {
-                    const base64Data = reader.result;
-                    try {
-                        const res = await fetch('/api/knowledge/upload-media', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                fileName: file.name,
-                                mimeType: file.type,
-                                base64Data
-                            })
-                        });
-                        const data = await res.json();
-                        if (data.success) {
-                            setKBModalMedia(data.mediaUrl, data.mediaType, data.mediaFileName);
-                            status.textContent = `✅ Attached: ${file.name}`;
-                        } else {
-                            alert('Upload Error: ' + (data.error || 'Failed to upload media'));
-                            status.textContent = 'Upload failed. Try again.';
-                        }
-                    } catch (netErr) {
-                        alert('Upload failed: ' + netErr.message);
-                        status.textContent = 'Upload failed.';
-                    } finally {
-                        btn.innerHTML = origHtml;
-                        btn.disabled = false;
-                        lucide.createIcons();
-                    }
-                };
-                reader.readAsDataURL(file);
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    status.textContent = `Uploading (${i + 1}/${files.length}): ${file.name}...`;
+
+                    await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = async () => {
+                            try {
+                                const res = await fetch('/api/knowledge/upload-media', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        fileName: file.name,
+                                        mimeType: file.type,
+                                        base64Data: reader.result
+                                    })
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                    currentModalMediaFiles.push({
+                                        url: data.mediaUrl,
+                                        type: data.mediaType,
+                                        fileName: data.mediaFileName
+                                    });
+                                }
+                                resolve();
+                            } catch (e) {
+                                console.error('Upload item failed:', e);
+                                resolve();
+                            }
+                        };
+                        reader.onerror = () => resolve();
+                        reader.readAsDataURL(file);
+                    });
+                }
+                renderModalMediaList();
+                status.textContent = `✅ Attached ${currentModalMediaFiles.length} file(s) in total`;
             } catch (err) {
-                alert('File read error: ' + err.message);
+                alert('Upload failed: ' + err.message);
+                status.textContent = 'Upload failed.';
+            } finally {
                 btn.innerHTML = origHtml;
                 btn.disabled = false;
+                lucide.createIcons();
+                fileInput.value = '';
             }
         }
 
@@ -1997,7 +2061,12 @@
             document.getElementById('modalEntryId').value = entry.id;
             document.getElementById('modalEntryTitle').value = entry.title;
             document.getElementById('modalEntryContent').value = entry.content;
-            setKBModalMedia(entry.mediaUrl, entry.mediaType, entry.mediaFileName);
+
+            const existingFiles = Array.isArray(entry.mediaFiles) && entry.mediaFiles.length > 0 
+                ? entry.mediaFiles 
+                : (entry.mediaUrl ? [{ url: entry.mediaUrl, type: entry.mediaType, fileName: entry.mediaFileName }] : []);
+
+            setKBModalMedia(existingFiles);
             document.getElementById('kbModalTitle').textContent = 'Edit Knowledge Document';
             document.getElementById('kbModal').classList.remove('hidden');
             lucide.createIcons();
@@ -2011,13 +2080,17 @@
             const id = document.getElementById('modalEntryId').value;
             const title = document.getElementById('modalEntryTitle').value.trim();
             const content = document.getElementById('modalEntryContent').value.trim();
-            const mediaUrl = document.getElementById('modalEntryMediaUrl').value.trim() || null;
-            const mediaType = document.getElementById('modalEntryMediaType').value.trim() || null;
-            const mediaFileName = document.getElementById('modalEntryMediaFileName').value.trim() || null;
 
             if (!title || !content) return alert('Title and content are required');
 
-            const payload = { title, content, mediaUrl, mediaType, mediaFileName };
+            const payload = { 
+                title, 
+                content, 
+                mediaFiles: currentModalMediaFiles,
+                mediaUrl: currentModalMediaFiles[0]?.url || null,
+                mediaType: currentModalMediaFiles[0]?.type || null,
+                mediaFileName: currentModalMediaFiles[0]?.fileName || null
+            };
 
             const saveBtn = document.getElementById('saveKBModalBtn');
             const origHtml = saveBtn ? saveBtn.innerHTML : '';
