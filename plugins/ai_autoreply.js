@@ -193,17 +193,19 @@ async function processUnifiedBundle(senderId) {
                 const ownerJid = getGlobalOwnerJid(m.client);
                 if (ownerJid) {
                     const cleanNumber = userPhone.replace(/[^0-9]/g, '');
+                    const mentionJid = senderId.includes('@') ? senderId : (cleanNumber + '@s.whatsapp.net');
                     const alertMsg = `🚨 *Smart Human Handoff Alert*\n\n` +
-                        `👤 *User:* +${cleanNumber} (${senderName})\n` +
+                        `👤 *User:* @${cleanNumber} (${senderName})\n` +
+                        `🔗 *Chat Link:* https://wa.me/${cleanNumber}\n` +
                         `❓ *Question:* "${result.handoff.query || unifiedText}"\n` +
                         `📝 *Reason:* ${result.handoff.reason}\n\n` +
-                        `⏸️ _AI paused for this user._\n` +
+                        `⏸️ _AI paused indefinitely for this user until you resume._\n` +
                         `👉 *To resume:* Simply type *.airesume* directly inside their chat, or send:\n` +
                         `*.airesume ${cleanNumber}*`;
 
                     await m.client.sendMessage(ownerJid, {
                         text: alertMsg,
-                        mentions: [senderId]
+                        mentions: [mentionJid]
                     });
                 }
             }
@@ -228,6 +230,7 @@ Module({
 }, async (m, text) => {
     try {
         if (m.fromMe) return;
+        if (m.isChannel || (m.jid && (m.jid.endsWith('@newsletter') || m.jid.includes('newsletter')))) return;
 
         const clean = text ? text.trim() : '';
         if (!clean) return;
@@ -351,6 +354,7 @@ Module({
 }, async (m) => {
     try {
         if (m.fromMe) return;
+        if (m.isChannel || (m.jid && (m.jid.endsWith('@newsletter') || m.jid.includes('newsletter')))) return;
 
         // If user is paused in Human Handoff mode, do not process
         if (aiEngine.isUserPaused(m.sender)) return;
@@ -397,14 +401,16 @@ Module({
                 const ownerJid = getGlobalOwnerJid(m.client);
                 if (ownerJid) {
                     const cleanNumber = (m.userPhone || m.sender.split('@')[0].split(':')[0]).replace(/[^0-9]/g, '');
+                    const mentionJid = m.sender.includes('@') ? m.sender : (cleanNumber + '@s.whatsapp.net');
                     const alertMsg = `🚨 *Smart Human Handoff Alert (Voice Note)*\n\n` +
                         `👤 *User:* @${cleanNumber} (${senderName})\n` +
+                        `🔗 *Chat Link:* https://wa.me/${cleanNumber}\n` +
                         `📝 *Reason:* ${result.handoff.reason}\n\n` +
-                        `⏸️ _AI paused for this user._\n` +
+                        `⏸️ _AI paused indefinitely for this user until you resume._\n` +
                         `👉 *To resume:* Simply type *.airesume* directly inside their chat, or send:\n` +
                         `*.airesume ${cleanNumber}*`;
 
-                    await m.client.sendMessage(ownerJid, { text: alertMsg, mentions: [m.sender] });
+                    await m.client.sendMessage(ownerJid, { text: alertMsg, mentions: [mentionJid] });
                 }
             }
         }
@@ -420,6 +426,7 @@ Module({
 }, async (m) => {
     try {
         if (m.fromMe) return;
+        if (m.isChannel || (m.jid && (m.jid.endsWith('@newsletter') || m.jid.includes('newsletter')))) return;
 
         // If user is paused in Human Handoff mode, do not process
         if (aiEngine.isUserPaused(m.sender)) return;
@@ -503,12 +510,20 @@ Module({
     type: "system"
 }, async (m, match) => {
     let target = (match[1] || '').trim();
+    const ownerJid = getGlobalOwnerJid(m.client);
+    const isDirectUserChat = !target && !m.isGroup && m.jid && !m.jid.includes('status@broadcast') && (m.jid !== ownerJid);
 
     // 0. If user typed ".airesume all", clear all paused chats!
     if (target.toLowerCase() === 'all') {
         aiEngine.clearAllHandoffs();
         aiEngine.saveKB({ enabled: true });
-        return m.reply("🟢 *AI Auto-Replies Resumed for ALL Chats!*\nAll paused chats have been unpaused, and global AI is active.");
+        // React silently or send notice if in owner chat
+        if (m.jid === ownerJid) {
+            return m.reply("🟢 *AI Auto-Replies Resumed for ALL Chats!*\nAll paused chats have been unpaused, and global AI is active.");
+        } else {
+            try { await m.client.sendMessage(m.jid, { react: { text: "✅", key: m.key } }); } catch (e) {}
+            return;
+        }
     }
 
     // 1. If quoted message, target the quoted user
@@ -516,25 +531,28 @@ Module({
         target = m.reply_message.sender;
     }
 
-    // 2. If typed directly inside a 1-on-1 private user chat, target this chat!
-    const ownerJid = getGlobalOwnerJid(m.client);
-    if (!target && !m.isGroup && m.jid && !m.jid.includes('status@broadcast')) {
-        if (m.jid !== ownerJid) {
-            target = m.jid;
-        }
+    // 2. If typed directly inside a 1-on-1 private user chat, target this chat silently!
+    if (isDirectUserChat) {
+        target = m.jid;
     }
 
     // 3. If a target chat/user was identified:
     if (target) {
         const cleanNumber = target.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
-        const resumed = aiEngine.resumeAIForUser(target);
-        if (resumed) {
-            return m.reply(`✅ *AI Auto-Reply Resumed!*\nThe bot will now answer messages from this chat (+${cleanNumber}) automatically.`, {
-                mentions: [target.includes('@') ? target : (cleanNumber + '@s.whatsapp.net')]
-            });
+        aiEngine.resumeAIForUser(target);
+        aiEngine.saveKB({ enabled: true });
+
+        // If the owner executed .airesume directly in the user's chat, DO NOT send any bot message to the user!
+        if (isDirectUserChat || m.jid !== ownerJid) {
+            try {
+                // Silent acknowledgment via reaction only, so no text is sent to the student
+                await m.client.sendMessage(m.jid, { react: { text: "✅", key: m.key } });
+            } catch (e) {}
+            console.log(`✅ [AI Resume] Silently resumed AI for user +${cleanNumber} without posting chat message.`);
+            return;
         } else {
-            aiEngine.saveKB({ enabled: true });
-            return m.reply(`✅ *AI Active for this chat!*\nChat was not in paused state. AI auto-reply is ready and active.`);
+            // Sent from owner's personal chat targeting another user
+            return m.reply(`✅ *AI Auto-Reply Resumed!*\nAI will now answer messages from +${cleanNumber} automatically.`);
         }
     }
 

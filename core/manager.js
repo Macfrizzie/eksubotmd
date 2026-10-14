@@ -77,6 +77,7 @@ async function serialize(sock, m) {
     m.client = sock; 
     m.id = key.id;
     m.isGroup = key.remoteJid ? key.remoteJid.endsWith('@g.us') : false;
+    m.isChannel = key.remoteJid ? (key.remoteJid.endsWith('@newsletter') || key.remoteJid.includes('newsletter')) : false;
     m.jid = key.remoteJid;
 
     // Prioritize real phone JID (@s.whatsapp.net) over LID

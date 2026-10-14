@@ -200,13 +200,7 @@ class AIEngine {
             );
 
             if (directMatch || phoneMatch) {
-                // Auto-expire handoff pause after 20 minutes of inactivity so chats never stay frozen permanently
-                const pausedTime = item.pausedAt ? new Date(item.pausedAt).getTime() : (item.timestamp ? new Date(item.timestamp).getTime() : 0);
-                if (pausedTime && (now - pausedTime > 20 * 60 * 1000)) {
-                    delete this.handoffs[key];
-                    this.saveHandoffs();
-                    return false;
-                }
+                // Total pause: AI stays paused for this user until owner explicitly resumes it
                 return true;
             }
         }

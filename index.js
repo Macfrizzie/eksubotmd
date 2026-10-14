@@ -302,13 +302,18 @@ async function startEksuBot() {
                 for (let rawMessage of chatUpdate.messages) {
                     if (!rawMessage.message) continue;
 
-                    // 1. Status broadcast isolation
+                    // 1. Status broadcast & WhatsApp Channel (Newsletter) isolation
                     if (rawMessage.key.remoteJid === 'status@broadcast') {
                         listeners.forEach(async (plugin) => {
                             if (plugin.on === 'status' || plugin.on === 'message') {
                                 try { await plugin.function(rawMessage, null); } catch (e) {}
                             }
                         });
+                        continue;
+                    }
+
+                    // Ignore WhatsApp channels / newsletters completely
+                    if (rawMessage.key.remoteJid && (rawMessage.key.remoteJid.endsWith('@newsletter') || rawMessage.key.remoteJid.includes('newsletter'))) {
                         continue;
                     }
 
