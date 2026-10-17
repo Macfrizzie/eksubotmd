@@ -154,12 +154,18 @@ Module({
         if (info?.isAdmin) return;
 
         if (info?.isBotAdmin) {
+            // Human hesitation jitter (1.2s - 2.2s) to avoid bot-signature ban detection
+            await new Promise(resolve => setTimeout(resolve, 1200 + Math.floor(Math.random() * 1000)));
+
             // 1. Delete violating message
             try {
                 await m.client.sendMessage(m.jid, { delete: m.key });
             } catch (e) {}
 
             const mode = config.mode || 'delete';
+
+            // Additional delay before notification/kick
+            await new Promise(resolve => setTimeout(resolve, 800 + Math.floor(Math.random() * 500)));
 
             // 2. Handle Action Mode
             if (mode === 'remove') {
